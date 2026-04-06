@@ -1014,7 +1014,7 @@ let SHEET_ID = "";
 let allRows = [];
 let filteredRows = [];
 
-// 설정 복원 (거래 데이터는 Supabase에서 로드 — GAS URL은 시세 등에만 사용)
+// 설정 복원 (거래 데이터는 Supabase; GAS URL은 레거시/선택)
 GAS_URL = localStorage.getItem('gasUrl') || '';
 SHEET_ID = localStorage.getItem('sheetId') || '';
 document.getElementById('gasUrl').value = GAS_URL;
@@ -1053,8 +1053,45 @@ function updateConnectionStatus(ok) {
   else    { el.classList.remove('connected'); txt.textContent = '연동 안됨'; }
 }
 
-// ── GAS 호출 ──
-// Supabase API 함수
+// ── Supabase / 시세 ──
+function normalizeKrxCode(code) {
+  const d = String(code || '').replace(/\D/g, '');
+  if (!d) return '';
+  return d.padStart(6, '0').slice(-6);
+}
+
+/** Yahoo Finance chart API — 코스피·코스닥 구분 자동 시도 (브라우저 fetch) */
+async function fetchYahooKrxPrice(norm6) {
+  for (const suf of ['.KS', '.KQ']) {
+    const sym = norm6 + suf;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`;
+    try {
+      const res = await fetch(url);
+      if (res.status === 429) {
+        await new Promise(r => setTimeout(r, 600));
+        continue;
+      }
+      if (!res.ok) continue;
+      const j = await res.json();
+      const meta = j.chart?.result?.[0]?.meta;
+      if (!meta) continue;
+      const price = meta.regularMarketPrice ?? meta.chartPreviousClose ?? meta.previousClose;
+      if (typeof price === 'number' && price > 0) return price;
+    } catch (_) { /* 다음 접미사 */ }
+  }
+  return null;
+}
+
+async function fetchKrxPricesForCodes(codes) {
+  const norms = [...new Set(codes.map(normalizeKrxCode))].filter(c => c && c !== '000000');
+  const map = {};
+  for (const n of norms) {
+    map[n] = await fetchYahooKrxPrice(n);
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return map;
+}
+
 async function sbFetch(endpoint, options={}) {
   const res = await fetch(SUPABASE_URL + '/rest/v1/' + endpoint, {
     ...options,
@@ -1070,9 +1107,6 @@ async function sbFetch(endpoint, options={}) {
   const text = await res.text();
   return text ? JSON.parse(text) : [];
 }
-
-async function gasGet(params) { return {}; }
-async function gasPost(body) { return { ok: true }; }
 
 // ── 전체 데이터 로드 ──
 async function loadAllData() {
@@ -1154,12 +1188,12 @@ function updateSummary(rows) {
   document.getElementById('totalDiv').textContent     = div.toLocaleString() + '원';
   document.getElementById('divCount').textContent     = divCnt + '건';
 
-  // 현 평가액 & 총 수익률: 종목별 보유수량 × 현재가(GOOGLEFINANCE)
-  updateEvaluation(rows, deposit);
+  // 현 평가액 & 총 수익률: 종목별 보유수량 × 현재가 (Yahoo Finance)
+  updateEvaluation(rows);
 }
 
 // 종목별 보유수량 계산 후 현재가 조회
-async function updateEvaluation(rows, totalDeposit) {
+async function updateEvaluation(rows) {
   const stocks = {};
   rows.forEach(r => {
     const code = r[3];
@@ -1177,21 +1211,32 @@ async function updateEvaluation(rows, totalDeposit) {
 
   if (!holding.length) {
     document.getElementById('totalEval').textContent = '—';
+    document.getElementById('evalChange').textContent = '';
+    document.getElementById('totalReturn').textContent = '—';
+    document.getElementById('totalReturnSub').textContent = '';
     return;
   }
 
-  // GOOGLEFINANCE는 브라우저에서 직접 호출 불가 → GAS 통해 조회
   try {
     const codes = holding.map(s => s.code);
-    const res = await gasGet({ action: 'prices', codes: codes.join(',') });
-    if (!res.ok || !res.prices) throw new Error();
+    const priceByNorm = await fetchKrxPricesForCodes(codes);
 
     let totalEval = 0, totalBuyAmt = 0;
+    let anyMissing = false;
     holding.forEach(s => {
-      const price = res.prices[s.code] || 0;
-      totalEval   += price * s.netQty;
+      const n = normalizeKrxCode(s.code);
+      const price = priceByNorm[n];
+      if (price == null || price <= 0) anyMissing = true;
+      const p = price && price > 0 ? price : 0;
+      totalEval += p * s.netQty;
       totalBuyAmt += s.buyAmt;
     });
+
+    const allBad = holding.every(s => {
+      const p = priceByNorm[normalizeKrxCode(s.code)];
+      return p == null || p <= 0;
+    });
+    if (allBad) throw new Error('no prices');
 
     const evalEl  = document.getElementById('totalEval');
     const profit  = totalEval - totalBuyAmt;
@@ -1203,17 +1248,21 @@ async function updateEvaluation(rows, totalDeposit) {
     evalEl.className   = 'value ' + (profit >= 0 ? 'text-green' : 'text-red');
 
     const profitSign = profit >= 0 ? '+' : '';
-    evalChange.textContent = profitSign + profit.toLocaleString() + '원 (매수대비)';
+    let evalNote = profitSign + profit.toLocaleString() + '원 (매수대비)';
+    if (anyMissing) evalNote += ' · 일부 시세 없음(추정)';
+    evalChange.textContent = evalNote;
     evalChange.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
 
-    const totalRate = totalDeposit > 0 ? ((totalEval - totalBuyAmt) / totalBuyAmt * 100) : 0;
+    const totalRate = totalBuyAmt > 0 ? ((totalEval - totalBuyAmt) / totalBuyAmt * 100) : 0;
     retEl.textContent = (totalRate >= 0 ? '+' : '') + totalRate.toFixed(1) + '%';
     retEl.className   = 'value ' + (totalRate >= 0 ? 'text-green' : 'text-red');
     retSub.textContent = (profit >= 0 ? '+' : '') + profit.toLocaleString() + '원';
 
   } catch(e) {
     document.getElementById('totalEval').textContent = '시세 조회 실패';
-    document.getElementById('evalChange').textContent = 'GAS 업데이트 필요';
+    document.getElementById('evalChange').textContent = '네트워크·종목코드(6자리)·Yahoo 응답을 확인하세요';
+    document.getElementById('totalReturn').textContent = '—';
+    document.getElementById('totalReturnSub').textContent = '';
   }
 }
 

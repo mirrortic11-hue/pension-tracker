@@ -1060,24 +1060,45 @@ function normalizeKrxCode(code) {
   return d.padStart(6, '0').slice(-6);
 }
 
-/** Yahoo Finance chart API — 코스피·코스닥 구분 자동 시도 (브라우저 fetch) */
+function priceFromYahooChartJson(j) {
+  const meta = j?.chart?.result?.[0]?.meta;
+  if (!meta) return null;
+  const price = meta.regularMarketPrice ?? meta.chartPreviousClose ?? meta.previousClose;
+  return typeof price === 'number' && price > 0 ? price : null;
+}
+
+/** Yahoo 직접 fetch는 브라우저에서 CORS로 막히는 경우가 많아, 실패 시 Jina 프록시로 동일 JSON 수신 */
+async function fetchYahooChartJson(sym) {
+  const path = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`;
+  try {
+    const res = await fetch(path);
+    if (res.status === 429) await new Promise(r => setTimeout(r, 600));
+    else if (res.ok) {
+      const j = await res.json();
+      if (j.chart?.result?.[0]?.meta) return j;
+    }
+  } catch (_) { /* CORS 등 */ }
+  try {
+    const res = await fetch('https://r.jina.ai/' + path);
+    if (!res.ok) return null;
+    const text = await res.text();
+    const marker = 'Markdown Content:\n';
+    let raw = text.includes(marker) ? text.slice(text.indexOf(marker) + marker.length).trim() : text;
+    const b = raw.indexOf('{"chart"');
+    if (b >= 0) raw = raw.slice(b);
+    return JSON.parse(raw.trim());
+  } catch (_) {
+    return null;
+  }
+}
+
+/** 코스피·코스닥 접미사 자동 시도 */
 async function fetchYahooKrxPrice(norm6) {
   for (const suf of ['.KS', '.KQ']) {
     const sym = norm6 + suf;
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`;
-    try {
-      const res = await fetch(url);
-      if (res.status === 429) {
-        await new Promise(r => setTimeout(r, 600));
-        continue;
-      }
-      if (!res.ok) continue;
-      const j = await res.json();
-      const meta = j.chart?.result?.[0]?.meta;
-      if (!meta) continue;
-      const price = meta.regularMarketPrice ?? meta.chartPreviousClose ?? meta.previousClose;
-      if (typeof price === 'number' && price > 0) return price;
-    } catch (_) { /* 다음 접미사 */ }
+    const j = await fetchYahooChartJson(sym);
+    const p = priceFromYahooChartJson(j);
+    if (p != null) return p;
   }
   return null;
 }

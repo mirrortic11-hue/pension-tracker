@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>연금 투자 관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --purple: #bc8cff;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── 헤더 ── */
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--text2); font-weight: 400; }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sheet-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text2);
+    font-family: var(--mono);
+  }
+  .sheet-status .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text2);
+  }
+  .sheet-status.connected .dot { background: var(--green); }
+
+  /* ── 레이아웃 ── */
+  .layout {
+    display: flex;
+    height: calc(100vh - 56px);
+  }
+
+  /* ── 사이드바 ── */
+  aside {
+    width: 220px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 16px 0;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+
+  .sidebar-section {
+    padding: 0 12px;
+    margin-bottom: 8px;
+  }
+
+  .sidebar-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text2);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 6px 8px;
+  }
+
+  .account-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s;
+    color: var(--text2);
+    font-size: 13px;
+    position: relative;
+  }
+  .account-item:hover { background: var(--bg3); color: var(--text); }
+  .account-item.active {
+    background: rgba(88,166,255,0.1);
+    color: var(--accent);
+  }
+  .account-item .badge {
+    margin-left: auto;
+    font-size: 10px;
+    background: var(--bg3);
+    color: var(--text2);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-family: var(--mono);
+  }
+  .account-item.active .badge {
+    background: rgba(88,166,255,0.2);
+    color: var(--accent);
+  }
+  .account-item .coming {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text2);
+    font-style: italic;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 12px 12px;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--text2);
+    font-size: 13px;
+    border-left: 2px solid transparent;
+  }
+  .nav-item:hover { color: var(--text); background: var(--bg3); }
+  .nav-item.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: rgba(88,166,255,0.05);
+  }
+  .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+  /* ── 메인 콘텐츠 ── */
+  main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── 섹션 헤더 ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+
+  /* ── 카드 ── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .card-body { padding: 18px; }
+
+  /* ── 구글시트 연동 패널 ── */
+  .sheet-setup {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+  }
+
+  .sheet-setup h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+  }
+  .input-group label {
+    font-size: 11px;
+    color: var(--text2);
+    font-weight: 500;
+  }
+  .input-group input, .input-group select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 8px 12px;
+    font-size: 13px;
+    font-family: var(--mono);
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  .input-group input:focus, .input-group select:focus {
+    border-color: var(--accent);
+  }
+  .input-group input::placeholder { color: var(--text2); }
+
+  /* ── 버튼 ── */
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    font-size: 13px;
+    font-family: var(--sans);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #0d1117;
+  }
+  .btn-primary:hover { background: #79c0ff; }
+  .btn-secondary {
+    background: var(--bg3);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-green {
+    background: var(--green);
+    color: #0d1117;
+  }
+  .btn-green:hover { opacity: 0.85; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* ── 테이블 ── */
+  .table-wrap {
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  thead th {
+    background: var(--bg3);
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text2);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody tr {
+    border-bottom: 1px solid rgba(48,54,61,0.5);
+    transition: background 0.1s;
+  }
+  tbody tr:hover { background: rgba(48,54,61,0.4); }
+  tbody td {
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .td-label { font-family: var(--sans); font-size: 13px; }
+  .td-right { text-align: right; }
+
+  /* ── 구분 뱃지 ── */
+  .badge-type {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-family: var(--sans);
+    font-weight: 600;
+  }
+  .badge-매수  { background: rgba(88,166,255,0.15); color: #58a6ff; }
+  .badge-매도  { background: rgba(248,81,73,0.15);  color: #f85149; }
+  .badge-분배금입금 { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .badge-입금  { background: rgba(210,153,34,0.15); color: #d29922; }
+  .badge-예탁금이용료 { background: rgba(139,148,158,0.15); color: #8b949e; }
+  .badge-이체송금 { background: rgba(188,140,255,0.15); color: #bc8cff; }
+
+  /* ── 입력 폼 ── */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  /* ── 업로드 영역 ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text2);
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(88,166,255,0.05);
+    color: var(--accent);
+  }
+  .upload-zone svg { width: 36px; height: 36px; margin-bottom: 10px; opacity: 0.6; }
+  .upload-zone p { font-size: 13px; margin-bottom: 4px; }
+  .upload-zone small { font-size: 11px; }
+
+  /* ── 요약 카드 ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  .summary-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .summary-card .label {
+    font-size: 11px;
+    color: var(--text2);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .summary-card .value {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .summary-card .sub {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 4px;
+    font-family: var(--mono);
+  }
+  .text-green { color: var(--green); }
+  .text-red   { color: var(--red); }
+  .text-yellow{ color: var(--yellow); }
+  .text-blue  { color: var(--accent); }
+
+  /* ── 탭 ── */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+  .tab {
+    padding: 10px 18px;
+    font-size: 13px;
+    color: var(--text2);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    font-weight: 500;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { display: none; padding: 18px; }
+  .tab-content.active { display: block; }
+
+  /* ── 페이지 전환 ── */
+  .page { display: none; }
+  .page.active { display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── 알림 ── */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 18px;
+    font-size: 13px;
+    color: var(--text);
+    z-index: 999;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s;
+    max-width: 320px;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-left: 3px solid var(--green); }
+  .toast.error   { border-left: 3px solid var(--red); }
+  .toast.info    { border-left: 3px solid var(--accent); }
+
+  /* ── 로딩 ── */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── 빈 상태 ── */
+  .empty-state {
+    text-align: center;
+    padding: 48px;
+    color: var(--text2);
+  }
+  .empty-state p { font-size: 14px; margin-top: 8px; }
+
+  /* ── 반응형 ── */
+  @media (max-width: 900px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    aside { width: 180px; }
+  }
+
+  .help-text {
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  .flex-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--bg3);
+    color: var(--text2);
+    font-family: var(--mono);
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 헤더 ── -->
+<header>
+  <div class="logo">pension<span>/</span>tracker</div>
+  <div class="header-right">
+    <div class="sheet-status" id="sheetStatus">
+      <div class="dot"></div>
+      <span id="sheetStatusText">연동 안됨</span>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="showPage('settings')">⚙ 설정</button>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- ── 사이드바 ── -->
+  <aside>
+    <div class="sidebar-section">
+      <div class="sidebar-label">계좌</div>
+      <div class="account-item active" onclick="selectAccount('연금1')">
+        <span>🏦</span>
+        <span>개인연금 1</span>
+        <span class="badge">활성</span>
+      </div>
+      <div class="account-item" onclick="showToast('준비 중입니다', 'info')">
+        <span>🏦</span>
+        <span>개인연금 2</span>
+        <span class="coming">준비중</span>
+      </div>
+      <div class="account-item" onclick="showToast('준비 중입니다', 'info')">
+        <span>📋</span>
+        <span>퇴직연금 IRP</span>
+        <span class="coming">준비중</span>
+      </div>
+      <div class="account-item" onclick="showToast('준비 중입니다', 'info')">
+        <span>📋</span>
+        <span>퇴직연금 DC</span>
+        <span class="coming">준비중</span>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">메뉴</div>
+    </div>
+    <div class="nav-item active" onclick="showPage('transactions')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A2.5 2.5 0 0 1 3.5 0h8.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0V1.5h-8a1 1 0 0 0-1 1v6.708A2.492 2.492 0 0 1 3.5 9h3.25a.75.75 0 0 1 0 1.5H3.5a1 1 0 1 0 0 2h5.75a.75.75 0 0 1 0 1.5H3.5A2.5 2.5 0 0 1 1 11.5v-9zm13.23 7.79a.75.75 0 0 0-1.06-1.06l-1.97 1.97-.97-.97a.75.75 0 0 0-1.06 1.06l1.5 1.5a.75.75 0 0 0 1.06 0l2.5-2.5z"/></svg>
+      거래내역
+    </div>
+    <div class="nav-item" onclick="showPage('portfolio')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 0 0-1.5 0v12.5c0 .414.336.75.75.75h14.5a.75.75 0 0 0 0-1.5H1.5V1.75zm14.28 2.53a.75.75 0 0 0-1.06-1.06L10 7.94 7.53 5.47a.75.75 0 0 0-1.06 0L3.22 8.72a.75.75 0 0 0 1.06 1.06L7 6.06l2.47 2.47a.75.75 0 0 0 1.06 0l5.25-5.25z"/></svg>
+      포트폴리오
+    </div>
+    <div class="nav-item" onclick="showPage('dividend')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0zm7-3.25v2.992l2.028.812a.75.75 0 0 1-.557 1.392l-2.5-1A.75.75 0 0 1 7 8.25v-3.5a.75.75 0 0 1 1.5 0z"/></svg>
+      분배금
+    </div>
+    <div class="nav-item" onclick="showPage('deposit')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M10.5 1.5a.5.5 0 0 0-1 0V4h-3V1.5a.5.5 0 0 0-1 0V4H4a2 2 0 0 0-2 2v1.5h-.5a.5.5 0 0 0 0 1H2v5a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8.5h.5a.5.5 0 0 0 0-1H14V6a2 2 0 0 0-2-2h-1.5V1.5z"/></svg>
+      입금내역
+    </div>
+    <div class="nav-item" onclick="showPage('settings')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8.2 8.2 0 0 1 .701.031C9.444.095 9.99.645 9.99 1.352V2.1c0 .605.392 1.13.949 1.325.304.107.599.229.886.362.434.201.945.196 1.331-.1l.598-.416c.55-.383 1.273-.22 1.659.33l.56.8a1.277 1.277 0 0 1-.099 1.659l-.415.598c-.296.386-.301.897-.1 1.331.133.288.255.582.362.886.195.557.72.949 1.325.949h.748c.706 0 1.256.547 1.32 1.289.02.233.031.469.031.711s-.011.478-.031.711c-.064.742-.614 1.289-1.32 1.289h-.748c-.605 0-1.13.392-1.325.949a5.984 5.984 0 0 1-.362.886c-.201.434-.196.945.1 1.331l.415.598c.383.55.22 1.273-.33 1.659l-.8.56a1.277 1.277 0 0 1-1.659-.099l-.598-.415c-.386-.296-.897-.301-1.331-.1a5.988 5.988 0 0 1-.886.362c-.557.195-.949.72-.949 1.325v.748c0 .706-.547 1.256-1.289 1.32A8.2 8.2 0 0 1 8 16a8.2 8.2 0 0 1-.701-.031C6.556 15.905 6.01 15.355 6.01 14.648V13.9c0-.605-.392-1.13-.949-1.325a5.987 5.987 0 0 1-.886-.362c-.434-.201-.945-.196-1.331.1l-.598.415a1.277 1.277 0 0 1-1.659-.33l-.56-.8a1.277 1.277 0 0 1 .099-1.659l.415-.598c.296-.386.301-.897.1-1.331a5.988 5.988 0 0 1-.362-.886C.392 7.63-.001 7.105-.001 6.5v-.748c0-.706.547-1.256 1.289-1.32A8.2 8.2 0 0 1 .999 4.31c0-.242.011-.478.031-.711C1.096 2.847 1.646 2.3 2.352 2.3h.748c.605 0 1.13-.392 1.325-.949.107-.304.229-.599.362-.886.201-.434.196-.945-.1-1.331L4.272.536a1.277 1.277 0 0 1 .33-1.659l.8-.56A1.277 1.277 0 0 1 7.06-.584l.416.598c.386.296.897.301 1.331.1A5.988 5.988 0 0 1 9.693-.249c.557-.195.949-.72.949-1.325V-2.32c0-.706.547-1.256 1.289-1.32A8.2 8.2 0 0 1 8 0z"/></svg>
+      설정
+    </div>
+  </aside>
+
+  <!-- ── 메인 ── -->
+  <main>
+
+    <!-- ══ 거래내역 페이지 ══ -->
+    <div class="page active" id="page-transactions">
+
+      <!-- 요약 -->
+      <div class="summary-grid" id="summaryGrid">
+        <div class="summary-card">
+          <div class="label">총 입금액</div>
+          <div class="value text-blue" id="totalDeposit">—</div>
+          <div class="sub" id="depositCount">— 건</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">현 평가액</div>
+          <div class="value" id="totalEval">
+            <span class="spinner"></span>
+          </div>
+          <div class="sub" id="evalChange">조회 중...</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">총 분배금 수령</div>
+          <div class="value text-green" id="totalDiv">—</div>
+          <div class="sub" id="divCount">— 건</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">총 수익률</div>
+          <div class="value" id="totalReturn">—</div>
+          <div class="sub" id="totalReturnSub">평가손익 / 총입금액</div>
+        </div>
+      </div>
+
+      <!-- 거래내역 카드 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">전체 거래내역</span>
+          <div class="flex-row">
+            <input type="text" id="searchInput" placeholder="검색..." 
+              style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 10px;font-size:12px;width:160px;outline:none;"
+              oninput="filterTable()">
+            <select id="filterType" onchange="filterTable()"
+              style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 10px;font-size:12px;outline:none;">
+              <option value="">전체</option>
+              <option value="매수">매수</option>
+              <option value="매도">매도</option>
+              <option value="분배금입금">분배금입금</option>
+              <option value="입금">입금</option>
+              <option value="예탁금이용료">예탁금이용료</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="loadFromSheet()">
+              <span id="refreshIcon">↻</span> 새로고침
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="showPage('add')">+ 거래 추가</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table id="txTable">
+            <thead>
+              <tr>
+                <th>거래일자</th>
+                <th>구분</th>
+                <th>원본거래종류</th>
+                <th>종목코드</th>
+                <th>종목명</th>
+                <th class="td-right">수량</th>
+                <th class="td-right">단가</th>
+                <th class="td-right">거래금액</th>
+                <th class="td-right">수수료</th>
+              </tr>
+            </thead>
+            <tbody id="txBody">
+              <tr>
+                <td colspan="9">
+                  <div class="empty-state">
+                    <p>⚙ 설정에서 구글 스프레드시트를 연동하면 데이터가 표시됩니다</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:12px;color:var(--text2);" id="rowCount">0 건</span>
+          <span style="font-size:11px;color:var(--text2);" id="lastUpdated"></span>
+        </div>
+      </div>
+
+      <!-- 엑셀 업로드 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">엑셀 업로드</span>
+          <span style="font-size:11px;color:var(--text2);">증권사 거래내역 엑셀을 업로드하면 자동 파싱됩니다</span>
+        </div>
+        <div class="card-body">
+          <div class="upload-zone" id="uploadZone"
+            ondragover="event.preventDefault();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="handleDrop(event)"
+            onclick="document.getElementById('fileInput').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75z"/>
+            </svg>
+            <p>엑셀 파일을 드래그하거나 클릭해서 업로드</p>
+            <small>.xlsx 형식 지원 (증권사 거래내역 원본)</small>
+          </div>
+          <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileUpload(event)">
+
+          <div id="uploadResult" style="display:none;margin-top:16px;"></div>
+
+          <div class="divider"></div>
+          <div class="help-text">
+            📌 업로드 방법: 증권사 앱/HTS → 거래내역 → 엑셀 다운로드 → 여기에 업로드<br>
+            📌 파싱 후 구글 스프레드시트에 자동으로 추가됩니다<br>
+            📌 중복 거래일자는 자동으로 건너뜁니다
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 거래 추가 페이지 ══ -->
+    <div class="page" id="page-add">
+      <div class="section-header">
+        <div class="section-title">거래 추가</div>
+        <button class="btn btn-secondary btn-sm" onclick="showPage('transactions')">← 목록으로</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">새 거래 입력</span>
+          <span style="font-size:11px;color:var(--text2);">구글 스프레드시트 '전체거래내역' 시트에 자동 추가됩니다</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="input-group">
+              <label>거래일자 *</label>
+              <input type="date" id="f_date">
+            </div>
+            <div class="input-group">
+              <label>구분 *</label>
+              <select id="f_type" onchange="onTypeChange()">
+                <option value="">선택</option>
+                <option value="매수">매수</option>
+                <option value="매도">매도</option>
+                <option value="분배금입금">분배금입금</option>
+                <option value="입금">입금</option>
+                <option value="예탁금이용료">예탁금이용료</option>
+                <option value="이체송금">이체송금</option>
+              </select>
+            </div>
+            <div class="input-group">
+              <label>원본거래종류</label>
+              <select id="f_raw_type">
+                <option value="">선택</option>
+                <option value="주식매수입고">주식매수입고</option>
+                <option value="주식매도출고">주식매도출고</option>
+                <option value="ETF/상장클래스 분배금입금">ETF/상장클래스 분배금입금</option>
+                <option value="이체입금">이체입금</option>
+                <option value="계좌대체입금">계좌대체입금</option>
+                <option value="예탁금이용료입금">예탁금이용료입금</option>
+                <option value="이체송금">이체송금</option>
+              </select>
+            </div>
+            <div class="input-group" id="f_code_group">
+              <label>종목코드</label>
+              <input type="text" id="f_code" placeholder="예: 368590">
+            </div>
+            <div class="input-group" id="f_name_group">
+              <label>종목명</label>
+              <input type="text" id="f_name" placeholder="예: RISE 미국나스닥100">
+            </div>
+            <div class="input-group" id="f_qty_group">
+              <label>수량</label>
+              <input type="number" id="f_qty" placeholder="0">
+            </div>
+            <div class="input-group" id="f_price_group">
+              <label>단가 (원)</label>
+              <input type="number" id="f_price" placeholder="0" oninput="calcAmount()">
+            </div>
+            <div class="input-group">
+              <label>거래금액 (원) *</label>
+              <input type="number" id="f_amount" placeholder="0">
+            </div>
+            <div class="input-group" id="f_fee_group">
+              <label>수수료 (원)</label>
+              <input type="number" id="f_fee" placeholder="0">
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="flex-row">
+            <button class="btn btn-primary" onclick="submitTransaction()">구글 시트에 저장</button>
+            <button class="btn btn-secondary" onclick="resetForm()">초기화</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 포트폴리오 페이지 ══ -->
+    <div class="page" id="page-portfolio">
+      <div class="section-header">
+        <div class="section-title">포트폴리오</div>
+        <button class="btn btn-secondary btn-sm" onclick="loadPortfolio()">↻ 새로고침</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>종목명</th>
+                <th>종목코드</th>
+                <th class="td-right">보유수량</th>
+                <th class="td-right">매입평균단가</th>
+                <th class="td-right">총매수금액</th>
+                <th class="td-right">총분배금</th>
+                <th class="td-right">수익률</th>
+              </tr>
+            </thead>
+            <tbody id="portfolioBody">
+              <tr><td colspan="7"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 분배금 페이지 ══ -->
+    <div class="page" id="page-dividend">
+      <div class="section-header">
+        <div class="section-title">분배금 내역</div>
+      </div>
+
+      <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="summary-card">
+          <div class="label">총 분배금 수령</div>
+          <div class="value text-green" id="divTotal2">—</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">수령 건수</div>
+          <div class="value" id="divCount2">—</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">분배금/입금 수익률</div>
+          <div class="value text-green" id="divRate2">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>수령일자</th>
+                <th>종목코드</th>
+                <th>종목명</th>
+                <th class="td-right">수령금액</th>
+                <th class="td-right">누적합계</th>
+                <th>연도</th>
+              </tr>
+            </thead>
+            <tbody id="divBody">
+              <tr><td colspan="6"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 입금내역 페이지 ══ -->
+    <div class="page" id="page-deposit">
+      <div class="section-header">
+        <div class="section-title">입금 내역</div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>입금일자</th>
+                <th>거래종류</th>
+                <th class="td-right">입금금액</th>
+                <th class="td-right">누적입금</th>
+                <th>연도</th>
+              </tr>
+            </thead>
+            <tbody id="depositBody">
+              <tr><td colspan="5"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 설정 페이지 ══ -->
+    <div class="page" id="page-settings">
+      <div class="section-header">
+        <div class="section-title">설정</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">구글 스프레드시트 연동</span>
+        </div>
+        <div class="card-body">
+          <div class="input-group" style="max-width:600px;margin-bottom:12px;">
+            <label>스프레드시트 ID</label>
+            <input type="text" id="sheetId" placeholder="URL에서 /d/ 와 /edit 사이의 값"
+              value="">
+          </div>
+          <div class="input-group" style="max-width:600px;margin-bottom:12px;">
+            <label>Google Apps Script 웹앱 URL</label>
+            <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec"
+              value="">
+          </div>
+
+          <div class="flex-row" style="margin-bottom:16px;">
+            <button class="btn btn-primary" onclick="saveSettings()">저장 및 연결 테스트</button>
+            <button class="btn btn-secondary" onclick="loadFromSheet()">데이터 불러오기</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="help-text">
+            <strong style="color:var(--text);">📋 연동 방법 (Google Apps Script)</strong><br><br>
+            1. 구글 스프레드시트 열기 → 확장 프로그램 → Apps Script<br>
+            2. 아래 코드를 붙여넣고 저장<br>
+            3. 배포 → 새 배포 → 유형: 웹앱 → 액세스: 모든 사용자<br>
+            4. 생성된 URL을 위에 입력
+          </div>
+
+          <div style="margin-top:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:14px;font-family:var(--mono);font-size:11px;color:var(--text2);white-space:pre-wrap;line-height:1.7;overflow-x:auto;">
+function doGet(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet();
+  const action = e.parameter.action;
+
+  if (action === 'read') {
+    const sheetName = e.parameter.sheet || '전체거래내역';
+    const ws = sheet.getSheetByName(sheetName);
+    const data = ws.getDataRange().getValues();
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, data: data }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'prices') {
+    const codes = e.parameter.codes.split(',');
+    const prices = {};
+    codes.forEach(code => {
+      try {
+        const price = FinanceApp.getStockInfo(code).price;
+        prices[code] = price;
+      } catch(err) {
+        // GOOGLEFINANCE 함수로 조회
+        try {
+          const formula = '=GOOGLEFINANCE("' + code + '","price")';
+          const temp = sheet.getSheetByName('전체거래내역');
+          prices[code] = 0;
+        } catch(e2) {}
+      }
+    });
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, prices: prices }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'append') {
+    const sheetName = e.parameter.sheet || '전체거래내역';
+    const ws = sheet.getSheetByName(sheetName);
+    const row = JSON.parse(e.parameter.row);
+    ws.appendRow(row);
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet();
+  const body = JSON.parse(e.postData.contents);
+
+  if (body.action === 'append_batch') {
+    const ws = sheet.getSheetByName(body.sheet || '전체거래내역');
+    body.rows.forEach(row => ws.appendRow(row));
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, added: body.rows.length }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (body.action === 'prices') {
+    const codes = body.codes;
+    const prices = {};
+    // 임시 셀에 GOOGLEFINANCE 수식으로 조회
+    const ws = sheet.getSheetByName('전체거래내역');
+    codes.forEach((code, i) => {
+      try {
+        const cell = ws.getRange(1000 + i, 20);
+        cell.setFormula('=GOOGLEFINANCE("' + code + '","price")');
+        SpreadsheetApp.flush();
+        prices[code] = cell.getValue();
+        cell.clear();
+      } catch(err) { prices[code] = 0; }
+    });
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, prices: prices }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── 상태 ──
+const SUPABASE_URL = "https://abonhubecflqlabcxgjd.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFib25odWJlY2ZscWxhYmN4Z2pkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0Mjk5NDQsImV4cCI6MjA5MTAwNTk0NH0.7sA_PDCdywXJSbhUbChdVa6-zqpzkgv8zZf8lWHg6ZI";
+const ACCOUNT_ID = "pension_1";
+let GAS_URL = "";
+let SHEET_ID = "";
+let allRows = [];
+let filteredRows = [];
+
+// 설정 복원
+document.getElementById('gasUrl').value = GAS_URL;
+document.getElementById('sheetId').value = SHEET_ID;
+if (GAS_URL) { updateConnectionStatus(true); loadAllData(); }
+
+// ── 페이지 전환 ──
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const page = document.getElementById('page-' + name);
+  if (page) page.classList.add('active');
+  const navMap = { transactions:'거래내역', portfolio:'포트폴리오', dividend:'분배금', deposit:'입금내역', settings:'설정', add:'거래 추가' };
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim() === (navMap[name] || '')) n.classList.add('active');
+  });
+  if (name === 'portfolio') loadPortfolio();
+  if (name === 'dividend')  loadDividend();
+  if (name === 'deposit')   loadDeposit();
+}
+
+// ── 설정 저장 ──
+function saveSettings() {
+  GAS_URL  = document.getElementById('gasUrl').value.trim();
+  SHEET_ID = document.getElementById('sheetId').value.trim();
+  localStorage.setItem('gasUrl',  GAS_URL);
+  localStorage.setItem('sheetId', SHEET_ID);
+  if (!GAS_URL) { showToast('GAS URL을 입력하세요', 'error'); return; }
+  loadAllData();
+}
+
+// ── 연결 상태 ──
+function updateConnectionStatus(ok) {
+  const el = document.getElementById('sheetStatus');
+  const txt = document.getElementById('sheetStatusText');
+  if (ok) { el.classList.add('connected'); txt.textContent = '연동됨'; }
+  else    { el.classList.remove('connected'); txt.textContent = '연동 안됨'; }
+}
+
+// ── GAS 호출 ──
+// Supabase API 함수
+async function sbFetch(endpoint, options={}) {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + endpoint, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+      ...(options.headers||{})
+    }
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+}
+
+async function gasGet(params) { return {}; }
+async function gasPost(body) { return { ok: true }; }
+
+// ── 전체 데이터 로드 ──
+async function loadAllData() {
+  try {
+    document.getElementById('refreshIcon').textContent = '⏳';
+    const data = await sbFetch(`transactions?account_id=eq.${ACCOUNT_ID}&order=trade_date.asc&limit=1000`);
+    updateConnectionStatus(true);
+    allRows = data.map(r => [
+      r.trade_date, r.type, r.raw_type, r.stock_code,
+      r.stock_name, r.quantity, r.price, r.amount, r.fee, r.id
+    ]);
+    renderTable(allRows);
+    updateSummary(allRows);
+    document.getElementById('lastUpdated').textContent = '마지막 업데이트: ' + new Date().toLocaleTimeString('ko-KR');
+    showToast('데이터 로드 완료 (' + allRows.length + '건)', 'success');
+  } catch(e) {
+    updateConnectionStatus(false);
+    showToast('연결 실패: ' + e.message, 'error');
+  } finally {
+    document.getElementById('refreshIcon').textContent = '↻';
+  }
+}
+
+function loadFromSheet() { loadAllData(); }
+
+// ── 테이블 렌더링 ──
+function renderTable(rows) {
+  const tbody = document.getElementById('txBody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><p>데이터가 없습니다</p></div></td></tr>';
+    document.getElementById('rowCount').textContent = '0 건';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const type = r[1] || '';
+    const badge = `<span class="badge-type badge-${type}">${type}</span>`;
+    const amt = r[7] ? Number(r[7]).toLocaleString() : '';
+    const qty = r[5] ? Number(r[5]).toLocaleString() : '';
+    const price = r[6] ? Number(r[6]).toLocaleString() : '';
+    const fee = r[8] ? Number(r[8]).toLocaleString() : '';
+    return `<tr>
+      <td>${r[0] || ''}</td>
+      <td>${badge}</td>
+      <td class="td-label">${r[2] || ''}</td>
+      <td><span class="tag">${r[3] || ''}</span></td>
+      <td class="td-label">${r[4] || ''}</td>
+      <td class="td-right">${qty}</td>
+      <td class="td-right">${price}</td>
+      <td class="td-right" style="color:var(--text)">${amt}</td>
+      <td class="td-right">${fee}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('rowCount').textContent = rows.length.toLocaleString() + ' 건';
+}
+
+// ── 검색/필터 ──
+function filterTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const t = document.getElementById('filterType').value;
+  const filtered = allRows.filter(r => {
+    const matchType = !t || (r[1] || '') === t;
+    const matchQ = !q || [r[0],r[1],r[2],r[3],r[4]].join(' ').toLowerCase().includes(q);
+    return matchType && matchQ;
+  });
+  renderTable(filtered);
+}
+
+// ── 요약 ──
+function updateSummary(rows) {
+  let deposit=0, depositCnt=0, buy=0, buyCnt=0, div=0, divCnt=0;
+  rows.forEach(r => {
+    const amt = Number(r[7]) || 0;
+    if (r[1] === '입금')      { deposit += amt; depositCnt++; }
+    if (r[1] === '매수')      { buy     += amt; buyCnt++; }
+    if (r[1] === '분배금입금'){ div     += amt; divCnt++; }
+  });
+  document.getElementById('totalDeposit').textContent = deposit.toLocaleString() + '원';
+  document.getElementById('depositCount').textContent = depositCnt + '건';
+  document.getElementById('totalDiv').textContent     = div.toLocaleString() + '원';
+  document.getElementById('divCount').textContent     = divCnt + '건';
+
+  // 현 평가액 & 총 수익률: 종목별 보유수량 × 현재가(GOOGLEFINANCE)
+  updateEvaluation(rows, deposit);
+}
+
+// 종목별 보유수량 계산 후 현재가 조회
+async function updateEvaluation(rows, totalDeposit) {
+  const stocks = {};
+  rows.forEach(r => {
+    const code = r[3];
+    if (!code || !['매수','매도'].includes(r[1])) return;
+    if (!stocks[code]) stocks[code] = { buyQty:0, buyAmt:0, sellQty:0 };
+    const qty = Number(r[5]) || 0;
+    const amt = Number(r[7]) || 0;
+    if (r[1] === '매수') { stocks[code].buyQty += qty; stocks[code].buyAmt += amt; }
+    if (r[1] === '매도') { stocks[code].sellQty += qty; }
+  });
+
+  const holding = Object.entries(stocks)
+    .map(([code, s]) => ({ code, netQty: s.buyQty - s.sellQty, buyAmt: s.buyAmt, buyQty: s.buyQty }))
+    .filter(s => s.netQty > 0);
+
+  if (!holding.length) {
+    document.getElementById('totalEval').textContent = '—';
+    return;
+  }
+
+  // GOOGLEFINANCE는 브라우저에서 직접 호출 불가 → GAS 통해 조회
+  try {
+    const codes = holding.map(s => s.code);
+    const res = await gasGet({ action: 'prices', codes: codes.join(',') });
+    if (!res.ok || !res.prices) throw new Error();
+
+    let totalEval = 0, totalBuyAmt = 0;
+    holding.forEach(s => {
+      const price = res.prices[s.code] || 0;
+      totalEval   += price * s.netQty;
+      totalBuyAmt += s.buyAmt;
+    });
+
+    const evalEl  = document.getElementById('totalEval');
+    const profit  = totalEval - totalBuyAmt;
+    const retEl   = document.getElementById('totalReturn');
+    const retSub  = document.getElementById('totalReturnSub');
+    const evalChange = document.getElementById('evalChange');
+
+    evalEl.textContent = totalEval.toLocaleString() + '원';
+    evalEl.className   = 'value ' + (profit >= 0 ? 'text-green' : 'text-red');
+
+    const profitSign = profit >= 0 ? '+' : '';
+    evalChange.textContent = profitSign + profit.toLocaleString() + '원 (매수대비)';
+    evalChange.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
+
+    const totalRate = totalDeposit > 0 ? ((totalEval - totalBuyAmt) / totalBuyAmt * 100) : 0;
+    retEl.textContent = (totalRate >= 0 ? '+' : '') + totalRate.toFixed(1) + '%';
+    retEl.className   = 'value ' + (totalRate >= 0 ? 'text-green' : 'text-red');
+    retSub.textContent = (profit >= 0 ? '+' : '') + profit.toLocaleString() + '원';
+
+  } catch(e) {
+    document.getElementById('totalEval').textContent = '시세 조회 실패';
+    document.getElementById('evalChange').textContent = 'GAS 업데이트 필요';
+  }
+}
+
+// ── 포트폴리오 ──
+async function loadPortfolio() {
+  if (!allRows.length && GAS_URL) await loadAllData();
+  const stocks = {};
+  allRows.forEach(r => {
+    const code = r[3];
+    if (!code) return;
+    if (!stocks[code]) stocks[code] = { name: r[4], code, buyQty:0, buyAmt:0, sellQty:0, div:0 };
+    const qty = Number(r[5]) || 0;
+    const amt = Number(r[7]) || 0;
+    const price = Number(r[6]) || 0;
+    if (r[1] === '매수')       { stocks[code].buyQty += qty; stocks[code].buyAmt += amt; }
+    if (r[1] === '매도')       { stocks[code].sellQty += qty; }
+    if (r[1] === '분배금입금') { stocks[code].div += amt; }
+  });
+
+  const tbody = document.getElementById('portfolioBody');
+  const holding = Object.values(stocks).filter(s => (s.buyQty - s.sellQty) > 0);
+
+  if (!holding.length) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = holding.map(s => {
+    const netQty = s.buyQty - s.sellQty;
+    const avgPrice = s.buyQty > 0 ? Math.round(s.buyAmt / s.buyQty) : 0;
+    const divRate = s.buyAmt > 0 ? (s.div / s.buyAmt * 100).toFixed(1) + '%' : '-';
+    const nameShort = (s.name || s.code || '').replace(/증권상장지수투자신탁.*/, '').replace(/미래에셋 |삼성 |KB /, '').trim().substring(0, 25);
+    return `<tr>
+      <td class="td-label">${nameShort}</td>
+      <td><span class="tag">${s.code}</span></td>
+      <td class="td-right">${netQty.toLocaleString()}</td>
+      <td class="td-right">${avgPrice.toLocaleString()}</td>
+      <td class="td-right">${s.buyAmt.toLocaleString()}</td>
+      <td class="td-right text-green">${s.div.toLocaleString()}</td>
+      <td class="td-right text-green">${divRate}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 분배금 ──
+async function loadDividend() {
+  if (!allRows.length && GAS_URL) await loadAllData();
+  const divRows = allRows.filter(r => r[1] === '분배금입금').sort((a,b) => String(a[0]).localeCompare(String(b[0])));
+  let cum = 0;
+  const tbody = document.getElementById('divBody');
+
+  if (!divRows.length) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p>분배금 내역이 없습니다</p></div></td></tr>';
+    return;
+  }
+
+  let total = 0;
+  tbody.innerHTML = divRows.map(r => {
+    const amt = Number(r[7]) || 0;
+    cum += amt; total += amt;
+    const yr = String(r[0]).substring(0, 4);
+    const nameShort = (r[4] || '').replace(/증권상장지수투자신탁.*/, '').replace(/미래에셋 |삼성 |KB /, '').trim().substring(0, 25);
+    return `<tr>
+      <td>${r[0]}</td>
+      <td><span class="tag">${r[3] || ''}</span></td>
+      <td class="td-label">${nameShort}</td>
+      <td class="td-right text-green">${amt.toLocaleString()}</td>
+      <td class="td-right" style="color:var(--text2)">${cum.toLocaleString()}</td>
+      <td>${yr}</td>
+    </tr>`;
+  }).join('');
+
+  const deposit = allRows.filter(r=>r[1]==='입금').reduce((s,r)=>s+(Number(r[7])||0),0);
+  document.getElementById('divTotal2').textContent = total.toLocaleString() + '원';
+  document.getElementById('divCount2').textContent = divRows.length + '건';
+  document.getElementById('divRate2').textContent  = deposit > 0 ? (total/deposit*100).toFixed(1)+'%' : '-';
+}
+
+// ── 입금내역 ──
+async function loadDeposit() {
+  if (!allRows.length && GAS_URL) await loadAllData();
+  const depRows = allRows.filter(r => r[1] === '입금').sort((a,b) => String(a[0]).localeCompare(String(b[0])));
+  let cum = 0;
+  const tbody = document.getElementById('depositBody');
+
+  if (!depRows.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p>입금 내역이 없습니다</p></div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = depRows.map(r => {
+    const amt = Number(r[7]) || 0;
+    cum += amt;
+    const yr = String(r[0]).substring(0, 4);
+    return `<tr>
+      <td>${r[0]}</td>
+      <td class="td-label">${r[2] || ''}</td>
+      <td class="td-right text-yellow">${amt.toLocaleString()}</td>
+      <td class="td-right" style="color:var(--text2)">${cum.toLocaleString()}</td>
+      <td>${yr}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 거래 추가 폼 ──
+function onTypeChange() {
+  const t = document.getElementById('f_type').value;
+  const show = (id, visible) => {
+    document.getElementById(id).style.display = visible ? '' : 'none';
+  };
+  const isTrade = ['매수','매도'].includes(t);
+  const isDiv   = t === '분배금입금';
+  show('f_code_group',  isTrade || isDiv);
+  show('f_name_group',  isTrade || isDiv);
+  show('f_qty_group',   isTrade);
+  show('f_price_group', isTrade);
+  show('f_fee_group',   isTrade);
+
+  // 원본거래종류 자동선택
+  const rawMap = {
+    '매수': '주식매수입고', '매도': '주식매도출고',
+    '분배금입금': 'ETF/상장클래스 분배금입금',
+    '입금': '이체입금', '예탁금이용료': '예탁금이용료입금',
+    '이체송금': '이체송금'
+  };
+  if (rawMap[t]) document.getElementById('f_raw_type').value = rawMap[t];
+}
+
+function calcAmount() {
+  const qty = Number(document.getElementById('f_qty').value) || 0;
+  const price = Number(document.getElementById('f_price').value) || 0;
+  if (qty && price) document.getElementById('f_amount').value = qty * price;
+}
+
+function resetForm() {
+  ['f_date','f_type','f_raw_type','f_code','f_name','f_qty','f_price','f_amount','f_fee']
+    .forEach(id => document.getElementById(id).value = '');
+}
+
+async function submitTransaction() {
+  const date   = document.getElementById('f_date').value;
+  const type   = document.getElementById('f_type').value;
+  const raw    = document.getElementById('f_raw_type').value;
+  const code   = document.getElementById('f_code').value;
+  const name   = document.getElementById('f_name').value;
+  const qty    = document.getElementById('f_qty').value;
+  const price  = document.getElementById('f_price').value;
+  const amount = document.getElementById('f_amount').value;
+  const fee    = document.getElementById('f_fee').value;
+
+  if (!date || !type || !amount) {
+    showToast('날짜, 구분, 거래금액은 필수입니다', 'error'); return;
+  }
+  if (!GAS_URL) { showToast('먼저 설정에서 GAS URL을 입력하세요', 'error'); return; }
+
+  const row = [date, type, raw, code, name,
+    qty ? Number(qty) : '',
+    price ? Number(price) : '',
+    Number(amount),
+    fee ? Number(fee) : ''];
+
+  try {
+    await sbFetch('transactions', {
+      method: 'POST',
+      body: JSON.stringify({
+        account_id: ACCOUNT_ID,
+        trade_date: date, type, raw_type: raw,
+        stock_code: code, stock_name: name,
+        quantity: qty ? Number(qty) : null,
+        price: price ? Number(price) : null,
+        amount: Number(amount),
+        fee: fee ? Number(fee) : null
+      })
+    });
+    showToast('저장 완료!', 'success');
+    resetForm();
+    showPage('transactions');
+    await loadAllData();
+  } catch(e) {
+    showToast('저장 실패: ' + e.message, 'error');
+  }
+}
+
+// ── 엑셀 업로드 ──
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processExcel(file);
+}
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (file) processExcel(file);
+}
+
+function processExcel(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      const typeMap = {
+        '주식매수입고': '매수', '주식매도출고': '매도',
+        'ETF/상장클래스 분배금입금': '분배금입금',
+        '이체입금': '입금', '계좌대체입금': '입금',
+        '예탁금이용료입금': '예탁금이용료', '이체송금': '이체송금'
+      };
+
+      const parsed = [];
+      let i = 2;
+      while (i < raw.length - 1) {
+        const r1 = raw[i], r2 = raw[i+1];
+        const txType = r1[1];
+        const 구분 = typeMap[txType];
+        if (구분) {
+          let code = r1[4] ? String(r1[4]).replace(/^A/, '') : '';
+          parsed.push([
+            r1[0], 구분, txType, code, r2[4] || '',
+            r2[2] || '', r2[3] || '', r1[5] || '', r1[7] || ''
+          ]);
+        }
+        i += 2;
+      }
+
+      const resultDiv = document.getElementById('uploadResult');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `
+        <div style="background:rgba(63,185,80,0.1);border:1px solid var(--green);border-radius:6px;padding:14px;">
+          <div style="color:var(--green);font-weight:600;margin-bottom:8px;">✓ 파싱 완료: ${parsed.length}건</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">구글 스프레드시트에 추가하려면 아래 버튼을 클릭하세요</div>
+          <button class="btn btn-green btn-sm" onclick="uploadToSheet(${JSON.stringify(parsed).replace(/"/g,'&quot;')})">
+            구글 시트에 ${parsed.length}건 추가
+          </button>
+        </div>`;
+    } catch(err) {
+      showToast('파일 파싱 실패: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function uploadToSheet(rows) {
+  try {
+    const records = rows.map(r => ({
+      account_id: ACCOUNT_ID,
+      trade_date: r[0], type: r[1], raw_type: r[2],
+      stock_code: r[3] || null, stock_name: r[4] || null,
+      quantity: r[5] ? Number(r[5]) : null,
+      price: r[6] ? Number(r[6]) : null,
+      amount: r[7] ? Number(r[7]) : null,
+      fee: r[8] ? Number(r[8]) : null
+    }));
+    await sbFetch('transactions', { method: 'POST', body: JSON.stringify(records) });
+    showToast(records.length + '건 추가 완료!', 'success');
+    await loadAllData();
+  } catch(e) {
+    showToast('업로드 실패: ' + e.message, 'error');
+  }
+}
+
+// ── 계좌 선택 ──
+function selectAccount(name) {
+  document.querySelectorAll('.account-item').forEach(el => el.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  showToast(name + ' 계좌 선택됨', 'info');
+}
+
+// ── 토스트 ──
+function showToast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// 오늘 날짜 기본값
+document.getElementById('f_date').value = new Date().toISOString().split('T')[0];
+onTypeChange();
+</script>
+</body>
+</html>

@@ -1014,10 +1014,12 @@ let SHEET_ID = "";
 let allRows = [];
 let filteredRows = [];
 
-// 설정 복원
+// 설정 복원 (거래 데이터는 Supabase에서 로드 — GAS URL은 시세 등에만 사용)
+GAS_URL = localStorage.getItem('gasUrl') || '';
+SHEET_ID = localStorage.getItem('sheetId') || '';
 document.getElementById('gasUrl').value = GAS_URL;
 document.getElementById('sheetId').value = SHEET_ID;
-if (GAS_URL) { updateConnectionStatus(true); loadAllData(); }
+loadAllData();
 
 // ── 페이지 전환 ──
 function showPage(name) {
@@ -1040,7 +1042,6 @@ function saveSettings() {
   SHEET_ID = document.getElementById('sheetId').value.trim();
   localStorage.setItem('gasUrl',  GAS_URL);
   localStorage.setItem('sheetId', SHEET_ID);
-  if (!GAS_URL) { showToast('GAS URL을 입력하세요', 'error'); return; }
   loadAllData();
 }
 
@@ -1218,7 +1219,7 @@ async function updateEvaluation(rows, totalDeposit) {
 
 // ── 포트폴리오 ──
 async function loadPortfolio() {
-  if (!allRows.length && GAS_URL) await loadAllData();
+  if (!allRows.length) await loadAllData();
   const stocks = {};
   allRows.forEach(r => {
     const code = r[3];
@@ -1259,7 +1260,7 @@ async function loadPortfolio() {
 
 // ── 분배금 ──
 async function loadDividend() {
-  if (!allRows.length && GAS_URL) await loadAllData();
+  if (!allRows.length) await loadAllData();
   const divRows = allRows.filter(r => r[1] === '분배금입금').sort((a,b) => String(a[0]).localeCompare(String(b[0])));
   let cum = 0;
   const tbody = document.getElementById('divBody');
@@ -1293,7 +1294,7 @@ async function loadDividend() {
 
 // ── 입금내역 ──
 async function loadDeposit() {
-  if (!allRows.length && GAS_URL) await loadAllData();
+  if (!allRows.length) await loadAllData();
   const depRows = allRows.filter(r => r[1] === '입금').sort((a,b) => String(a[0]).localeCompare(String(b[0])));
   let cum = 0;
   const tbody = document.getElementById('depositBody');
@@ -1366,13 +1367,6 @@ async function submitTransaction() {
   if (!date || !type || !amount) {
     showToast('날짜, 구분, 거래금액은 필수입니다', 'error'); return;
   }
-  if (!GAS_URL) { showToast('먼저 설정에서 GAS URL을 입력하세요', 'error'); return; }
-
-  const row = [date, type, raw, code, name,
-    qty ? Number(qty) : '',
-    price ? Number(price) : '',
-    Number(amount),
-    fee ? Number(fee) : ''];
 
   try {
     await sbFetch('transactions', {

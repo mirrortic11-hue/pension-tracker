@@ -1354,7 +1354,18 @@ async function updateEvaluation(rows) {
 async function loadPortfolio() {
   if (!allRows.length) await loadAllData();
   const stocks = {};
-  allRows.forEach(r => {
+  // 동일 일자에 매수/매도가 함께 있을 때 선매도로 유령 잔고가 생기지 않도록
+  // 날짜 기준 정렬 후 "매수 -> 매도 -> 기타" 순으로 처리한다.
+  const txRows = [...allRows].sort((a, b) => {
+    const d = String(a[0] || '').localeCompare(String(b[0] || ''));
+    if (d !== 0) return d;
+    const rank = (t) => (t === '매수' ? 0 : t === '매도' ? 1 : 2);
+    const tr = rank(a[1]) - rank(b[1]);
+    if (tr !== 0) return tr;
+    return Number(a[9] || 0) - Number(b[9] || 0);
+  });
+
+  txRows.forEach(r => {
     const code = r[3];
     if (!code) return;
     if (!stocks[code]) stocks[code] = { name: r[4], code, holdQty:0, holdCost:0, div:0 };

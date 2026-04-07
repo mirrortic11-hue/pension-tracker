@@ -1104,11 +1104,13 @@ async function fetchYahooKrxQuote(norm6) {
     const meta = j?.chart?.result?.[0]?.meta;
     const p = priceFromYahooChartJson(j);
     if (p != null) {
-      const prevClose = Number(meta?.chartPreviousClose ?? meta?.previousClose ?? 0);
-      const diffRaw = Number(meta?.regularMarketChange);
-      const rateRaw = Number(meta?.regularMarketChangePercent);
-      const diff = Number.isFinite(diffRaw) ? diffRaw : (prevClose > 0 ? (p - prevClose) : 0);
-      const rate = Number.isFinite(rateRaw) ? rateRaw : (prevClose > 0 ? (diff / prevClose * 100) : 0);
+      const closes = j?.chart?.result?.[0]?.indicators?.quote?.[0]?.close || [];
+      const validCloses = closes.filter(v => typeof v === 'number' && Number.isFinite(v) && v > 0);
+      const prevFromSeries = validCloses.length >= 2 ? validCloses[validCloses.length - 2] : null;
+      const prevMeta = Number(meta?.previousClose ?? meta?.chartPreviousClose ?? 0);
+      const prevClose = prevFromSeries ?? (prevMeta > 0 ? prevMeta : 0);
+      const diff = prevClose > 0 ? (p - prevClose) : 0;
+      const rate = prevClose > 0 ? (diff / prevClose * 100) : 0;
       return { price: p, prevClose, diff, rate };
     }
   }

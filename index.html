@@ -801,11 +801,14 @@
                 <th class="td-right">매입평균단가</th>
                 <th class="td-right">총매수금액</th>
                 <th class="td-right">총분배금</th>
+                <th class="td-right">현재가</th>
+                <th class="td-right">전일대비</th>
+                <th class="td-right">등락률</th>
                 <th class="td-right">수익률</th>
               </tr>
             </thead>
             <tbody id="portfolioBody">
-              <tr><td colspan="7"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
+              <tr><td colspan="10"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1093,21 +1096,26 @@ async function fetchYahooChartJson(sym) {
 }
 
 /** 코스피·코스닥 접미사 자동 시도 */
-async function fetchYahooKrxPrice(norm6) {
+async function fetchYahooKrxQuote(norm6) {
   for (const suf of ['.KS', '.KQ']) {
     const sym = norm6 + suf;
     const j = await fetchYahooChartJson(sym);
+    const meta = j?.chart?.result?.[0]?.meta;
     const p = priceFromYahooChartJson(j);
-    if (p != null) return p;
+    if (p != null) {
+      const diff = Number(meta?.regularMarketChange ?? 0);
+      const rate = Number(meta?.regularMarketChangePercent ?? 0);
+      return { price: p, diff, rate };
+    }
   }
   return null;
 }
 
-async function fetchKrxPricesForCodes(codes) {
+async function fetchKrxQuotesForCodes(codes) {
   const norms = [...new Set(codes.map(normalizeKrxCode))].filter(c => c && c !== '000000');
   const map = {};
   for (const n of norms) {
-    map[n] = await fetchYahooKrxPrice(n);
+    map[n] = await fetchYahooKrxQuote(n);
     await new Promise(r => setTimeout(r, 100));
   }
   return map;
@@ -1240,13 +1248,13 @@ async function updateEvaluation(rows) {
 
   try {
     const codes = holding.map(s => s.code);
-    const priceByNorm = await fetchKrxPricesForCodes(codes);
+    const quoteByNorm = await fetchKrxQuotesForCodes(codes);
 
     let totalEval = 0, totalBuyAmt = 0;
     let anyMissing = false;
     holding.forEach(s => {
       const n = normalizeKrxCode(s.code);
-      const price = priceByNorm[n];
+      const price = quoteByNorm[n]?.price;
       if (price == null || price <= 0) anyMissing = true;
       const p = price && price > 0 ? price : 0;
       totalEval += p * s.netQty;
@@ -1254,7 +1262,7 @@ async function updateEvaluation(rows) {
     });
 
     const allBad = holding.every(s => {
-      const p = priceByNorm[normalizeKrxCode(s.code)];
+      const p = quoteByNorm[normalizeKrxCode(s.code)]?.price;
       return p == null || p <= 0;
     });
     if (allBad) throw new Error('no prices');
@@ -1297,7 +1305,6 @@ async function loadPortfolio() {
     if (!stocks[code]) stocks[code] = { name: r[4], code, buyQty:0, buyAmt:0, sellQty:0, div:0 };
     const qty = Number(r[5]) || 0;
     const amt = Number(r[7]) || 0;
-    const price = Number(r[6]) || 0;
     if (r[1] === '매수')       { stocks[code].buyQty += qty; stocks[code].buyAmt += amt; }
     if (r[1] === '매도')       { stocks[code].sellQty += qty; }
     if (r[1] === '분배금입금') { stocks[code].div += amt; }
@@ -1307,15 +1314,24 @@ async function loadPortfolio() {
   const holding = Object.values(stocks).filter(s => (s.buyQty - s.sellQty) > 0);
 
   if (!holding.length) {
-    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
     return;
   }
+
+  const quotes = await fetchKrxQuotesForCodes(holding.map(s => s.code));
 
   tbody.innerHTML = holding.map(s => {
     const netQty = s.buyQty - s.sellQty;
     const avgPrice = s.buyQty > 0 ? Math.round(s.buyAmt / s.buyQty) : 0;
     const divRate = s.buyAmt > 0 ? (s.div / s.buyAmt * 100).toFixed(1) + '%' : '-';
     const nameShort = (s.name || s.code || '').replace(/증권상장지수투자신탁.*/, '').replace(/미래에셋 |삼성 |KB /, '').trim().substring(0, 25);
+    const q = quotes[normalizeKrxCode(s.code)];
+    const now = q?.price;
+    const diff = q?.diff;
+    const rate = q?.rate;
+    const diffSign = (diff || 0) >= 0 ? '+' : '';
+    const diffClass = (diff || 0) >= 0 ? 'text-green' : 'text-red';
+    const rateClass = (rate || 0) >= 0 ? 'text-green' : 'text-red';
     return `<tr>
       <td class="td-label">${nameShort}</td>
       <td><span class="tag">${s.code}</span></td>
@@ -1323,6 +1339,9 @@ async function loadPortfolio() {
       <td class="td-right">${avgPrice.toLocaleString()}</td>
       <td class="td-right">${s.buyAmt.toLocaleString()}</td>
       <td class="td-right text-green">${s.div.toLocaleString()}</td>
+      <td class="td-right">${now ? now.toLocaleString() : '-'}</td>
+      <td class="td-right ${diff != null ? diffClass : ''}">${diff != null ? (diffSign + Math.abs(diff).toLocaleString()) : '-'}</td>
+      <td class="td-right ${rate != null ? rateClass : ''}">${rate != null ? ((rate >= 0 ? '+' : '') + rate.toFixed(2) + '%') : '-'}</td>
       <td class="td-right text-green">${divRate}</td>
     </tr>`;
   }).join('');

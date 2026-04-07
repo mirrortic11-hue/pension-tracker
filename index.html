@@ -1167,12 +1167,26 @@ async function fetchKrxQuote(norm6) {
 }
 
 async function fetchKrxQuotesForCodes(codes) {
+  const QUOTE_CACHE_KEY = 'pension_tracker_quote_cache_v1';
   const norms = [...new Set(codes.map(normalizeKrxCode))].filter(c => c && c !== '000000');
+  const cached = (() => {
+    try { return JSON.parse(localStorage.getItem(QUOTE_CACHE_KEY) || '{}'); }
+    catch (_) { return {}; }
+  })();
   const map = {};
   for (const n of norms) {
-    map[n] = await fetchKrxQuote(n);
+    const q = await fetchKrxQuote(n);
+    if (q && q.price) {
+      map[n] = q;
+      cached[n] = { ...q, ts: Date.now() };
+    } else if (cached[n] && cached[n].price) {
+      map[n] = cached[n];
+    } else {
+      map[n] = null;
+    }
     await new Promise(r => setTimeout(r, 100));
   }
+  try { localStorage.setItem(QUOTE_CACHE_KEY, JSON.stringify(cached)); } catch (_) {}
   return map;
 }
 

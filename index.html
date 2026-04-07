@@ -1096,6 +1096,34 @@ async function fetchYahooChartJson(sym) {
   }
 }
 
+function extractJsonFromJinaText(text) {
+  const marker = 'Markdown Content:\n';
+  let raw = text.includes(marker) ? text.slice(text.indexOf(marker) + marker.length).trim() : text.trim();
+  const start = raw.indexOf('{');
+  if (start > 0) raw = raw.slice(start);
+  return raw;
+}
+
+async function fetchNaverKrxQuote(norm6) {
+  try {
+    const url = `https://r.jina.ai/http://polling.finance.naver.com/api/realtime/domestic/stock/${encodeURIComponent(norm6)}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const text = await res.text();
+    const data = JSON.parse(extractJsonFromJinaText(text));
+    const row = data?.datas?.[0];
+    if (!row) return null;
+    const price = Number(String(row.closePriceRaw || '').replace(/\D/g, ''));
+    const diff = Number(String(row.compareToPreviousClosePriceRaw ?? row.compareToPreviousClosePrice ?? '').replace(/,/g, ''));
+    const rate = Number(String(row.fluctuationsRatioRaw ?? row.fluctuationsRatio ?? '').replace(/,/g, ''));
+    if (!Number.isFinite(price) || price <= 0) return null;
+    const prevClose = price - (Number.isFinite(diff) ? diff : 0);
+    return { price, prevClose, diff: Number.isFinite(diff) ? diff : 0, rate: Number.isFinite(rate) ? rate : 0 };
+  } catch (_) {
+    return null;
+  }
+}
+
 /** 코스피·코스닥 접미사 자동 시도 */
 async function fetchYahooKrxQuote(norm6) {
   for (const suf of ['.KS', '.KQ']) {
@@ -1117,11 +1145,17 @@ async function fetchYahooKrxQuote(norm6) {
   return null;
 }
 
+async function fetchKrxQuote(norm6) {
+  const naver = await fetchNaverKrxQuote(norm6);
+  if (naver) return naver;
+  return fetchYahooKrxQuote(norm6);
+}
+
 async function fetchKrxQuotesForCodes(codes) {
   const norms = [...new Set(codes.map(normalizeKrxCode))].filter(c => c && c !== '000000');
   const map = {};
   for (const n of norms) {
-    map[n] = await fetchYahooKrxQuote(n);
+    map[n] = await fetchKrxQuote(n);
     await new Promise(r => setTimeout(r, 100));
   }
   return map;

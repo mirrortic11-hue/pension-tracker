@@ -805,11 +805,14 @@
                 <th class="td-right">전일가</th>
                 <th class="td-right">전일대비</th>
                 <th class="td-right">등락률</th>
+                <th class="td-right">평가금액</th>
+                <th class="td-right">평가손익</th>
                 <th class="td-right">수익률</th>
+                <th class="td-right">분배수익률</th>
               </tr>
             </thead>
             <tbody id="portfolioBody">
-              <tr><td colspan="11"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
+              <tr><td colspan="14"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1407,7 +1410,7 @@ async function loadPortfolio() {
   const holding = Object.values(stocks).filter(s => s.holdQty > 0);
 
   if (!holding.length) {
-    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
     return;
   }
 
@@ -1423,9 +1426,13 @@ async function loadPortfolio() {
     const prevClose = q?.prevClose;
     const diff = q?.diff;
     const rate = q?.rate;
+    const evalAmt = now ? Math.round(now * netQty) : null;
+    const evalPnl = evalAmt != null ? (evalAmt - Math.round(s.holdCost)) : null;
+    const pnlRate = evalAmt != null && s.holdCost > 0 ? (evalPnl / s.holdCost * 100) : null;
     const diffSign = (diff || 0) >= 0 ? '+' : '';
     const diffClass = (diff || 0) >= 0 ? 'text-green' : 'text-red';
     const rateClass = (rate || 0) >= 0 ? 'text-green' : 'text-red';
+    const pnlClass = (evalPnl || 0) >= 0 ? 'text-green' : 'text-red';
     return `<tr>
       <td class="td-label">${nameShort}</td>
       <td><span class="tag">${s.code}</span></td>
@@ -1437,6 +1444,9 @@ async function loadPortfolio() {
       <td class="td-right">${prevClose ? prevClose.toLocaleString() : '-'}</td>
       <td class="td-right ${diff != null ? diffClass : ''}">${diff != null ? (diffSign + Math.abs(diff).toLocaleString()) : '-'}</td>
       <td class="td-right ${rate != null ? rateClass : ''}">${rate != null ? ((rate >= 0 ? '+' : '') + rate.toFixed(2) + '%') : '-'}</td>
+      <td class="td-right">${evalAmt != null ? evalAmt.toLocaleString() : '-'}</td>
+      <td class="td-right ${evalPnl != null ? pnlClass : ''}">${evalPnl != null ? ((evalPnl >= 0 ? '+' : '') + evalPnl.toLocaleString()) : '-'}</td>
+      <td class="td-right ${pnlRate != null ? pnlClass : ''}">${pnlRate != null ? ((pnlRate >= 0 ? '+' : '') + pnlRate.toFixed(2) + '%') : '-'}</td>
       <td class="td-right text-green">${divRate}</td>
     </tr>`;
   }).join('');

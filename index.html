@@ -1342,10 +1342,11 @@ async function loadPortfolio() {
   allRows.forEach(r => {
     const code = r[3];
     if (!code) return;
-    if (!stocks[code]) stocks[code] = { name: r[4], code, buyQty:0, buyAmt:0, sellQty:0, div:0 };
+    if (!stocks[code]) stocks[code] = { name: r[4], code, buyQty:0, buyAmt:0, buyFee:0, sellQty:0, div:0 };
     const qty = Number(r[5]) || 0;
     const amt = Number(r[7]) || 0;
-    if (r[1] === '매수')       { stocks[code].buyQty += qty; stocks[code].buyAmt += amt; }
+    const fee = Number(r[8]) || 0;
+    if (r[1] === '매수')       { stocks[code].buyQty += qty; stocks[code].buyAmt += amt; stocks[code].buyFee += fee; }
     if (r[1] === '매도')       { stocks[code].sellQty += qty; }
     if (r[1] === '분배금입금') { stocks[code].div += amt; }
   });
@@ -1362,7 +1363,8 @@ async function loadPortfolio() {
 
   tbody.innerHTML = holding.map(s => {
     const netQty = s.buyQty - s.sellQty;
-    const avgPrice = s.buyQty > 0 ? Math.round(s.buyAmt / s.buyQty) : 0;
+    // 증권사 평균단가와 맞추기 위해 매수 수수료를 원가에 포함
+    const avgPrice = s.buyQty > 0 ? Math.round((s.buyAmt + s.buyFee) / s.buyQty) : 0;
     const divRate = s.buyAmt > 0 ? (s.div / s.buyAmt * 100).toFixed(1) + '%' : '-';
     const nameShort = (s.name || s.code || '').replace(/증권상장지수투자신탁.*/, '').replace(/미래에셋 |삼성 |KB /, '').trim().substring(0, 25);
     const q = quotes[normalizeKrxCode(s.code)];

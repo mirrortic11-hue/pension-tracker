@@ -802,13 +802,14 @@
                 <th class="td-right">총매수금액</th>
                 <th class="td-right">총분배금</th>
                 <th class="td-right">현재가</th>
+                <th class="td-right">전일가</th>
                 <th class="td-right">전일대비</th>
                 <th class="td-right">등락률</th>
                 <th class="td-right">수익률</th>
               </tr>
             </thead>
             <tbody id="portfolioBody">
-              <tr><td colspan="10"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
+              <tr><td colspan="11"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1108,7 +1109,7 @@ async function fetchYahooKrxQuote(norm6) {
       const rateRaw = Number(meta?.regularMarketChangePercent);
       const diff = Number.isFinite(diffRaw) ? diffRaw : (prevClose > 0 ? (p - prevClose) : 0);
       const rate = Number.isFinite(rateRaw) ? rateRaw : (prevClose > 0 ? (diff / prevClose * 100) : 0);
-      return { price: p, diff, rate };
+      return { price: p, prevClose, diff, rate };
     }
   }
   return null;
@@ -1317,7 +1318,7 @@ async function loadPortfolio() {
   const holding = Object.values(stocks).filter(s => (s.buyQty - s.sellQty) > 0);
 
   if (!holding.length) {
-    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
     return;
   }
 
@@ -1330,6 +1331,7 @@ async function loadPortfolio() {
     const nameShort = (s.name || s.code || '').replace(/증권상장지수투자신탁.*/, '').replace(/미래에셋 |삼성 |KB /, '').trim().substring(0, 25);
     const q = quotes[normalizeKrxCode(s.code)];
     const now = q?.price;
+    const prevClose = q?.prevClose;
     const diff = q?.diff;
     const rate = q?.rate;
     const diffSign = (diff || 0) >= 0 ? '+' : '';
@@ -1343,6 +1345,7 @@ async function loadPortfolio() {
       <td class="td-right">${s.buyAmt.toLocaleString()}</td>
       <td class="td-right text-green">${s.div.toLocaleString()}</td>
       <td class="td-right">${now ? now.toLocaleString() : '-'}</td>
+      <td class="td-right">${prevClose ? prevClose.toLocaleString() : '-'}</td>
       <td class="td-right ${diff != null ? diffClass : ''}">${diff != null ? (diffSign + Math.abs(diff).toLocaleString()) : '-'}</td>
       <td class="td-right ${rate != null ? rateClass : ''}">${rate != null ? ((rate >= 0 ? '+' : '') + rate.toFixed(2) + '%') : '-'}</td>
       <td class="td-right text-green">${divRate}</td>

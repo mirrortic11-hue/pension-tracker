@@ -1,7 +1,7 @@
 // config.js — app-wide constants and version enforcement.
 // Loaded as a plain <script>, exposes globals used by the rest of the app.
 
-const APP_VERSION = '2026-04-07-avg-fix-1';
+const APP_VERSION = '2026-04-13-modular-1';
 const VERSION_KEY = 'pension_tracker_app_version';
 
 // 캐시된 구버전 HTML을 피하기 위해 버전 쿼리로 1회 강제 갱신

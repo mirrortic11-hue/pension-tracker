@@ -1,18 +1,19 @@
 // config.js — app-wide constants and version enforcement.
 // Loaded as a plain <script>, exposes globals used by the rest of the app.
 
-const APP_VERSION = '2026-04-13-modular-1';
+const APP_VERSION = '2026-04-13-modular-2';
 const VERSION_KEY = 'pension_tracker_app_version';
 
-// 캐시된 구버전 HTML을 피하기 위해 버전 쿼리로 1회 강제 갱신
+// 캐시된 구버전 HTML을 피하기 위해 버전 변경 시 1회 하드 리로드.
+// sessionStorage 게이트로 같은 세션 내 무한 루프를 원천 차단한다.
 (function enforceVersionedUrl() {
+  const SESSION_GATE = 'pension_tracker_reloaded_for_' + APP_VERSION;
+  if (sessionStorage.getItem(SESSION_GATE)) return;
   const stored = localStorage.getItem(VERSION_KEY);
-  const u = new URL(window.location.href);
-  const currentV = u.searchParams.get('v');
-  if (stored !== APP_VERSION || currentV !== APP_VERSION) {
+  if (stored !== APP_VERSION) {
     localStorage.setItem(VERSION_KEY, APP_VERSION);
-    u.searchParams.set('v', APP_VERSION);
-    window.location.replace(u.toString());
+    sessionStorage.setItem(SESSION_GATE, '1');
+    window.location.reload();
   }
 })();
 

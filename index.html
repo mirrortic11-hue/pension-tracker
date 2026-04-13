@@ -503,6 +503,7 @@ function doPost(e) {
 <script src="src/config.js"></script>
 <script src="src/supabase.js"></script>
 <script src="src/quotes.js"></script>
+<script src="src/calc.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -636,20 +637,7 @@ function updateSummary(rows) {
 
 // 종목별 보유수량 계산 후 현재가 조회
 async function updateEvaluation(rows) {
-  const stocks = {};
-  rows.forEach(r => {
-    const code = r[3];
-    if (!code || !['매수','매도'].includes(r[1])) return;
-    if (!stocks[code]) stocks[code] = { buyQty:0, buyAmt:0, sellQty:0 };
-    const qty = Number(r[5]) || 0;
-    const amt = Number(r[7]) || 0;
-    if (r[1] === '매수') { stocks[code].buyQty += qty; stocks[code].buyAmt += amt; }
-    if (r[1] === '매도') { stocks[code].sellQty += qty; }
-  });
-
-  const holding = Object.entries(stocks)
-    .map(([code, s]) => ({ code, netQty: s.buyQty - s.sellQty, buyAmt: s.buyAmt, buyQty: s.buyQty }))
-    .filter(s => s.netQty > 0);
+  const holding = computeNetPositions(rows);
 
   if (!holding.length) {
     document.getElementById('totalEval').textContent = '—';
@@ -711,41 +699,7 @@ async function updateEvaluation(rows) {
 // ── 포트폴리오 ──
 async function loadPortfolio() {
   if (!allRows.length) await loadAllData();
-  const stocks = {};
-  // 동일 일자에 매수/매도가 함께 있을 때 선매도로 유령 잔고가 생기지 않도록
-  // 날짜 기준 정렬 후 "매수 -> 매도 -> 기타" 순으로 처리한다.
-  const txRows = [...allRows].sort((a, b) => {
-    const d = String(a[0] || '').localeCompare(String(b[0] || ''));
-    if (d !== 0) return d;
-    const rank = (t) => (t === '매수' ? 0 : t === '매도' ? 1 : 2);
-    const tr = rank(a[1]) - rank(b[1]);
-    if (tr !== 0) return tr;
-    return Number(a[9] || 0) - Number(b[9] || 0);
-  });
-
-  txRows.forEach(r => {
-    const code = r[3];
-    if (!code) return;
-    if (!stocks[code]) stocks[code] = { name: r[4], code, holdQty:0, holdCost:0, div:0 };
-    const qty = Number(r[5]) || 0;
-    const amt = Number(r[7]) || 0;
-    const fee = Number(r[8]) || 0;
-    if (r[1] === '매수') {
-      stocks[code].holdQty += qty;
-      stocks[code].holdCost += (amt + fee);
-    }
-    if (r[1] === '매도' && qty > 0 && stocks[code].holdQty > 0) {
-      const sellQty = Math.min(qty, stocks[code].holdQty);
-      const avgBeforeSell = stocks[code].holdCost / stocks[code].holdQty;
-      stocks[code].holdCost -= avgBeforeSell * sellQty;
-      stocks[code].holdQty -= sellQty;
-      if (stocks[code].holdQty <= 0.000001) {
-        stocks[code].holdQty = 0;
-        stocks[code].holdCost = 0;
-      }
-    }
-    if (r[1] === '분배금입금') { stocks[code].div += amt; }
-  });
+  const stocks = computeHoldings(allRows);
 
   const tbody = document.getElementById('portfolioBody');
   const holding = Object.values(stocks).filter(s => s.holdQty > 0);

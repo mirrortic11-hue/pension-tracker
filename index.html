@@ -579,25 +579,31 @@ function updateConnectionStatus(ok) {
 }
 
 // ── 전체 데이터 로드 ──
+let _loadAllDataPromise = null;
 async function loadAllData() {
-  try {
-    document.getElementById('refreshIcon').textContent = '⏳';
-    const data = await sbFetch(`transactions?account_id=eq.${ACCOUNT_ID}&order=trade_date.asc&limit=1000`);
-    updateConnectionStatus(true);
-    allRows = data.map(r => [
-      r.trade_date, r.type, r.raw_type, r.stock_code,
-      r.stock_name, r.quantity, r.price, r.amount, r.fee, r.id
-    ]);
-    renderTable(allRows);
-    updateSummary(allRows);
-    document.getElementById('lastUpdated').textContent = '마지막 업데이트: ' + new Date().toLocaleTimeString('ko-KR');
-    showToast('데이터 로드 완료 (' + allRows.length + '건)', 'success');
-  } catch(e) {
-    updateConnectionStatus(false);
-    showToast('연결 실패: ' + e.message, 'error');
-  } finally {
-    document.getElementById('refreshIcon').textContent = '↻';
-  }
+  if (_loadAllDataPromise) return _loadAllDataPromise;
+  _loadAllDataPromise = (async () => {
+    try {
+      document.getElementById('refreshIcon').textContent = '⏳';
+      const data = await sbFetch(`transactions?account_id=eq.${ACCOUNT_ID}&order=trade_date.asc&limit=1000`);
+      updateConnectionStatus(true);
+      allRows = data.map(r => [
+        r.trade_date, r.type, r.raw_type, r.stock_code,
+        r.stock_name, r.quantity, r.price, r.amount, r.fee, r.id
+      ]);
+      renderTable(allRows);
+      updateSummary(allRows);
+      document.getElementById('lastUpdated').textContent = '마지막 업데이트: ' + new Date().toLocaleTimeString('ko-KR');
+      showToast('데이터 로드 완료 (' + allRows.length + '건)', 'success');
+    } catch(e) {
+      updateConnectionStatus(false);
+      showToast('연결 실패: ' + e.message, 'error');
+    } finally {
+      document.getElementById('refreshIcon').textContent = '↻';
+      _loadAllDataPromise = null;
+    }
+  })();
+  return _loadAllDataPromise;
 }
 
 function loadFromSheet() { loadAllData(); }

@@ -69,3 +69,23 @@ function computeNetPositions(rows) {
     .map(([code, s]) => ({ code, netQty: s.buyQty - s.sellQty, buyAmt: s.buyAmt, buyQty: s.buyQty }))
     .filter(s => s.netQty > 0);
 }
+
+/**
+ * Aggregate top-line cash flows for the portfolio summary.
+ * Returns: { deposit, buy, sell, div, fee, interest, cash }
+ * cash = 입금 + 매도 + 분배금 + 예탁금이용료 − 매수 − 수수료
+ */
+function computeCashFlows(rows) {
+  let deposit=0, buy=0, sell=0, div=0, fee=0, interest=0;
+  rows.forEach(r => {
+    const amt = Number(r[7]) || 0;
+    const f   = Number(r[8]) || 0;
+    if (r[1] === '입금')       deposit += amt;
+    else if (r[1] === '매수')  { buy += amt; fee += f; }
+    else if (r[1] === '매도')  { sell += amt; fee += f; }
+    else if (r[1] === '분배금입금') div += amt;
+    else if (r[1] === '예탁금이용료') interest += amt;
+  });
+  const cash = deposit + sell + div + interest - buy - fee;
+  return { deposit, buy, sell, div, fee, interest, cash };
+}

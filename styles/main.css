@@ -235,6 +235,17 @@ main {
 }
 .card-body { padding: 18px; }
 
+.calc-tab-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+}
+.calc-tab-btn.active {
+  background: rgba(88,166,255,0.1);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ── 구글시트 연동 패널 ── */
 .sheet-setup {
   background: var(--bg2);

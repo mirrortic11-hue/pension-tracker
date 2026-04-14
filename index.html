@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-14-tx-limit">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-14-calc-step1">
 </head>
 <body>
 
@@ -73,6 +73,10 @@
     <div class="nav-item" onclick="showPage('deposit')">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M10.5 1.5a.5.5 0 0 0-1 0V4h-3V1.5a.5.5 0 0 0-1 0V4H4a2 2 0 0 0-2 2v1.5h-.5a.5.5 0 0 0 0 1H2v5a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8.5h.5a.5.5 0 0 0 0-1H14V6a2 2 0 0 0-2-2h-1.5V1.5z"/></svg>
       입금내역
+    </div>
+    <div class="nav-item" onclick="showPage('calculator')">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M12 1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h8zM4 2a1 1 0 0 0-1 1v3h10V3a1 1 0 0 0-1-1H4zm9 5H3v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7zM5 10a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm2 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm4 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm0-3a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM5 13a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
+      계산기
     </div>
     <div class="nav-item" onclick="showPage('settings')">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8.2 8.2 0 0 1 .701.031C9.444.095 9.99.645 9.99 1.352V2.1c0 .605.392 1.13.949 1.325.304.107.599.229.886.362.434.201.945.196 1.331-.1l.598-.416c.55-.383 1.273-.22 1.659.33l.56.8a1.277 1.277 0 0 1-.099 1.659l-.415.598c-.296.386-.301.897-.1 1.331.133.288.255.582.362.886.195.557.72.949 1.325.949h.748c.706 0 1.256.547 1.32 1.289.02.233.031.469.031.711s-.011.478-.031.711c-.064.742-.614 1.289-1.32 1.289h-.748c-.605 0-1.13.392-1.325.949a5.984 5.984 0 0 1-.362.886c-.201.434-.196.945.1 1.331l.415.598c.383.55.22 1.273-.33 1.659l-.8.56a1.277 1.277 0 0 1-1.659-.099l-.598-.415c-.386-.296-.897-.301-1.331-.1a5.988 5.988 0 0 1-.886.362c-.557.195-.949.72-.949 1.325v.748c0 .706-.547 1.256-1.289 1.32A8.2 8.2 0 0 1 8 16a8.2 8.2 0 0 1-.701-.031C6.556 15.905 6.01 15.355 6.01 14.648V13.9c0-.605-.392-1.13-.949-1.325a5.987 5.987 0 0 1-.886-.362c-.434-.201-.945-.196-1.331.1l-.598.415a1.277 1.277 0 0 1-1.659-.33l-.56-.8a1.277 1.277 0 0 1 .099-1.659l.415-.598c.296-.386.301-.897.1-1.331a5.988 5.988 0 0 1-.362-.886C.392 7.63-.001 7.105-.001 6.5v-.748c0-.706.547-1.256 1.289-1.32A8.2 8.2 0 0 1 .999 4.31c0-.242.011-.478.031-.711C1.096 2.847 1.646 2.3 2.352 2.3h.748c.605 0 1.13-.392 1.325-.949.107-.304.229-.599.362-.886.201-.434.196-.945-.1-1.331L4.272.536a1.277 1.277 0 0 1 .33-1.659l.8-.56A1.277 1.277 0 0 1 7.06-.584l.416.598c.386.296.897.301 1.331.1A5.988 5.988 0 0 1 9.693-.249c.557-.195.949-.72.949-1.325V-2.32c0-.706.547-1.256 1.289-1.32A8.2 8.2 0 0 1 8 0z"/></svg>
@@ -422,6 +426,37 @@
       </div>
     </div>
 
+    <!-- ══ 계산기 페이지 ══ -->
+    <div class="page" id="page-calculator">
+      <div class="section-header">
+        <div class="section-title">계산기</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="gap:4px;">
+          <button class="btn btn-secondary btn-sm calc-tab-btn active" id="calcTabCompound" onclick="switchCalcTab('compound')">복리계산기</button>
+          <button class="btn btn-secondary btn-sm calc-tab-btn" id="calcTabAvgDown" onclick="switchCalcTab('avgdown')">물타기계산기</button>
+        </div>
+        <div class="card-body">
+
+          <!-- 복리계산기 탭 -->
+          <div id="calcPaneCompound">
+            <div class="empty-state">
+              <p>복리계산기 (준비 중)</p>
+            </div>
+          </div>
+
+          <!-- 물타기계산기 탭 -->
+          <div id="calcPaneAvgDown" style="display:none;">
+            <div class="empty-state">
+              <p>물타기계산기 (준비 중)</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
     <!-- ══ 설정 페이지 ══ -->
     <div class="page" id="page-settings">
       <div class="section-header">
@@ -546,12 +581,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-14-tx-limit"></script>
-<script src="src/supabase.js?v=2026-04-14-tx-limit"></script>
-<script src="src/quotes.js?v=2026-04-14-tx-limit"></script>
-<script src="src/format.js?v=2026-04-14-tx-limit"></script>
-<script src="src/calc.js?v=2026-04-14-tx-limit"></script>
-<script src="src/ui.js?v=2026-04-14-tx-limit"></script>
+<script src="src/config.js?v=2026-04-14-calc-step1"></script>
+<script src="src/supabase.js?v=2026-04-14-calc-step1"></script>
+<script src="src/quotes.js?v=2026-04-14-calc-step1"></script>
+<script src="src/format.js?v=2026-04-14-calc-step1"></script>
+<script src="src/calc.js?v=2026-04-14-calc-step1"></script>
+<script src="src/ui.js?v=2026-04-14-calc-step1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──

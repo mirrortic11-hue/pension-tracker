@@ -31,11 +31,24 @@ function showPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const page = document.getElementById('page-' + name);
   if (page) page.classList.add('active');
-  const navMap = { transactions:'거래내역', portfolio:'포트폴리오', dividend:'분배금', deposit:'입금내역', settings:'설정', add:'거래 추가' };
+  const navMap = { transactions:'거래내역', portfolio:'포트폴리오', dividend:'분배금', deposit:'입금내역', calculator:'계산기', settings:'설정', add:'거래 추가' };
   document.querySelectorAll('.nav-item').forEach(n => {
     if (n.textContent.trim() === (navMap[name] || '')) n.classList.add('active');
   });
   if (name === 'portfolio') loadPortfolio();
   if (name === 'dividend')  loadDividend();
   if (name === 'deposit')   loadDeposit();
+}
+
+function switchCalcTab(tab) {
+  const compBtn = document.getElementById('calcTabCompound');
+  const avgBtn  = document.getElementById('calcTabAvgDown');
+  const compPane = document.getElementById('calcPaneCompound');
+  const avgPane  = document.getElementById('calcPaneAvgDown');
+  if (!compBtn || !avgBtn || !compPane || !avgPane) return;
+  const isComp = (tab === 'compound');
+  compBtn.classList.toggle('active', isComp);
+  avgBtn.classList.toggle('active', !isComp);
+  compPane.style.display = isComp ? '' : 'none';
+  avgPane.style.display  = isComp ? 'none' : '';
 }

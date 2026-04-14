@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-14-tx-summary6">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-14-dep-breakdown">
 </head>
 <body>
 
@@ -376,6 +376,25 @@
       <div class="section-header">
         <div class="section-title">입금 내역</div>
       </div>
+
+      <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="summary-card">
+          <div class="label">총 입금액</div>
+          <div class="value text-blue" id="depTotal">—</div>
+          <div class="sub" id="depCount">— 건</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">이체입금 (외부)</div>
+          <div class="value" id="depTransfer">—</div>
+          <div class="sub" id="depTransferCnt">— 건</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">계좌대체입금 (내부)</div>
+          <div class="value" id="depInternal">—</div>
+          <div class="sub" id="depInternalCnt">— 건</div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="table-wrap">
           <table>
@@ -520,12 +539,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-14-tx-summary6"></script>
-<script src="src/supabase.js?v=2026-04-14-tx-summary6"></script>
-<script src="src/quotes.js?v=2026-04-14-tx-summary6"></script>
-<script src="src/format.js?v=2026-04-14-tx-summary6"></script>
-<script src="src/calc.js?v=2026-04-14-tx-summary6"></script>
-<script src="src/ui.js?v=2026-04-14-tx-summary6"></script>
+<script src="src/config.js?v=2026-04-14-dep-breakdown"></script>
+<script src="src/supabase.js?v=2026-04-14-dep-breakdown"></script>
+<script src="src/quotes.js?v=2026-04-14-dep-breakdown"></script>
+<script src="src/format.js?v=2026-04-14-dep-breakdown"></script>
+<script src="src/calc.js?v=2026-04-14-dep-breakdown"></script>
+<script src="src/ui.js?v=2026-04-14-dep-breakdown"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -787,6 +806,22 @@ async function loadDeposit() {
   const depRows = allRows.filter(r => r[1] === '입금').sort((a,b) => String(a[0]).localeCompare(String(b[0])));
   let cum = 0;
   const tbody = document.getElementById('depositBody');
+
+  // 타입별 집계
+  let total=0, transfer=0, transferCnt=0, internal=0, internalCnt=0;
+  depRows.forEach(r => {
+    const amt = Number(r[7]) || 0;
+    total += amt;
+    const raw = String(r[2] || '');
+    if (raw.includes('계좌대체')) { internal += amt; internalCnt++; }
+    else                          { transfer += amt; transferCnt++; }
+  });
+  document.getElementById('depTotal').textContent        = total.toLocaleString() + '원';
+  document.getElementById('depCount').textContent        = depRows.length + '건';
+  document.getElementById('depTransfer').textContent     = transfer.toLocaleString() + '원';
+  document.getElementById('depTransferCnt').textContent  = transferCnt + '건';
+  document.getElementById('depInternal').textContent     = internal.toLocaleString() + '원';
+  document.getElementById('depInternalCnt').textContent  = internalCnt + '건';
 
   if (!depRows.length) {
     tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p>입금 내역이 없습니다</p></div></td></tr>';

@@ -946,6 +946,7 @@ function processExcel(file) {
       };
 
       const parsed = [];
+      const skipped = {};
       let i = 2;
       while (i < raw.length - 1) {
         const r1 = raw[i], r2 = raw[i+1];
@@ -957,15 +958,23 @@ function processExcel(file) {
             r1[0], 구분, txType, code, r2[4] || '',
             r2[2] || '', r2[3] || '', r1[5] || '', r1[7] || ''
           ]);
+        } else if (txType) {
+          skipped[txType] = (skipped[txType] || 0) + 1;
         }
         i += 2;
       }
+
+      const skippedCnt = Object.values(skipped).reduce((a,b)=>a+b,0);
+      const skippedNote = skippedCnt > 0
+        ? `<div style="color:var(--yellow);font-size:12px;margin-bottom:8px;">⚠ ${skippedCnt}건 스킵 (알 수 없는 거래종류): ${Object.entries(skipped).map(([k,v])=>`${k} ${v}건`).join(', ')}</div>`
+        : '';
 
       const resultDiv = document.getElementById('uploadResult');
       resultDiv.style.display = 'block';
       resultDiv.innerHTML = `
         <div style="background:rgba(63,185,80,0.1);border:1px solid var(--green);border-radius:6px;padding:14px;">
           <div style="color:var(--green);font-weight:600;margin-bottom:8px;">✓ 파싱 완료: ${parsed.length}건</div>
+          ${skippedNote}
           <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">구글 스프레드시트에 추가하려면 아래 버튼을 클릭하세요</div>
           <button class="btn btn-green btn-sm" onclick="uploadToSheet(${JSON.stringify(parsed).replace(/"/g,'&quot;')})">
             구글 시트에 ${parsed.length}건 추가

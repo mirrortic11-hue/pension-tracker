@@ -76,7 +76,7 @@ function computeNetPositions(rows) {
  * cash = 입금 + 매도 + 분배금 + 예탁금이용료 − 매수 − 수수료
  */
 function computeCashFlows(rows) {
-  let deposit=0, buy=0, sell=0, div=0, fee=0, interest=0;
+  let deposit=0, buy=0, sell=0, div=0, fee=0, interest=0, withdraw=0;
   rows.forEach(r => {
     const amt = Number(r[7]) || 0;
     const f   = Number(r[8]) || 0;
@@ -85,7 +85,8 @@ function computeCashFlows(rows) {
     else if (r[1] === '매도')  { sell += amt; fee += f; }
     else if (r[1] === '분배금입금') div += amt;
     else if (r[1] === '예탁금이용료') interest += amt;
+    else if (r[1] === '이체송금' || r[1] === '출금') withdraw += amt;
   });
-  const cash = deposit + sell + div + interest - buy - fee;
-  return { deposit, buy, sell, div, fee, interest, cash };
+  const cash = deposit + sell + div + interest - buy - fee - withdraw;
+  return { deposit, buy, sell, div, fee, interest, withdraw, cash };
 }

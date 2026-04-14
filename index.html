@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-14-calc-step3">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-14-calc-step5">
 </head>
 <body>
 
@@ -507,8 +507,71 @@
 
           <!-- 물타기계산기 탭 -->
           <div id="calcPaneAvgDown" style="display:none;">
-            <div class="empty-state">
-              <p>물타기계산기 (준비 중)</p>
+            <div class="form-grid">
+              <div class="input-group" style="grid-column:span 2;">
+                <label>보유 종목 선택 (선택 시 현재값 자동 입력)</label>
+                <select id="ad_holding" onchange="onAvgDownHoldingSelect()">
+                  <option value="">-- 수동 입력 --</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>현재 평균단가 (원)</label>
+                <input type="number" id="ad_avg" placeholder="0" oninput="runAvgDown()">
+              </div>
+              <div class="input-group">
+                <label>현재 보유수량</label>
+                <input type="number" id="ad_qty" placeholder="0" oninput="runAvgDown()">
+              </div>
+              <div class="input-group">
+                <label>추가 매수 수량</label>
+                <input type="number" id="ad_add_qty" placeholder="0" oninput="runAvgDown()">
+              </div>
+              <div class="input-group">
+                <label>추가 매수 단가 (원)</label>
+                <input type="number" id="ad_add_price" placeholder="0" oninput="runAvgDown()">
+              </div>
+              <div class="input-group">
+                <label>현재 시세 (원, 선택)</label>
+                <input type="number" id="ad_mkt" placeholder="0" oninput="runAvgDown()">
+              </div>
+              <div class="input-group" style="align-self:end;">
+                <button class="btn btn-secondary btn-sm" onclick="useMarketPriceForAdd()">시세를 매수단가로</button>
+              </div>
+            </div>
+            <div class="flex-row" style="margin-top:12px;">
+              <button class="btn btn-secondary btn-sm" onclick="resetAvgDown()">초기화</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+              <div class="summary-card">
+                <div class="label">새 평균단가</div>
+                <div class="value text-blue" id="ad_new_avg">—</div>
+                <div class="sub" id="ad_new_avg_sub">현재 대비</div>
+              </div>
+              <div class="summary-card">
+                <div class="label">합산 수량</div>
+                <div class="value" id="ad_new_qty">—</div>
+                <div class="sub" id="ad_new_qty_sub">—</div>
+              </div>
+              <div class="summary-card">
+                <div class="label">새 매입총액</div>
+                <div class="value" id="ad_new_cost">—</div>
+                <div class="sub" id="ad_new_cost_sub">추가 +—</div>
+              </div>
+            </div>
+
+            <div class="summary-grid" style="grid-template-columns:repeat(2,1fr);margin-top:12px;">
+              <div class="summary-card">
+                <div class="label">평가금액 (현재 시세 기준)</div>
+                <div class="value" id="ad_mkt_value">—</div>
+              </div>
+              <div class="summary-card">
+                <div class="label">평가손익 · 수익률</div>
+                <div class="value" id="ad_pnl">—</div>
+                <div class="sub" id="ad_pnl_rate">—</div>
+              </div>
             </div>
           </div>
 
@@ -640,12 +703,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-14-calc-step3"></script>
-<script src="src/supabase.js?v=2026-04-14-calc-step3"></script>
-<script src="src/quotes.js?v=2026-04-14-calc-step3"></script>
-<script src="src/format.js?v=2026-04-14-calc-step3"></script>
-<script src="src/calc.js?v=2026-04-14-calc-step3"></script>
-<script src="src/ui.js?v=2026-04-14-calc-step3"></script>
+<script src="src/config.js?v=2026-04-14-calc-step5"></script>
+<script src="src/supabase.js?v=2026-04-14-calc-step5"></script>
+<script src="src/quotes.js?v=2026-04-14-calc-step5"></script>
+<script src="src/format.js?v=2026-04-14-calc-step5"></script>
+<script src="src/calc.js?v=2026-04-14-calc-step5"></script>
+<script src="src/ui.js?v=2026-04-14-calc-step5"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1069,6 +1132,129 @@ function prefillCompoundFromAccount() {
 
   runCompound();
   showToast('현재 계좌 기준으로 불러왔습니다', 'success');
+}
+
+// ── 물타기계산기 ──
+let _avgDownQuoteCache = null; // {normCode: {price}}
+
+async function loadCalculatorPage() {
+  if (!allRows.length) await loadAllData();
+  const stocks = computeHoldings(allRows);
+  const holding = Object.values(stocks).filter(s => s.holdQty > 0);
+  const sel = document.getElementById('ad_holding');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- 수동 입력 --</option>' +
+    holding.map(s => {
+      const shortName = shortenName(s.name || s.code);
+      return `<option value="${s.code}">${shortName} (${s.code})</option>`;
+    }).join('');
+
+  // 시세 미리 캐시
+  try {
+    _avgDownQuoteCache = await fetchKrxQuotesForCodes(holding.map(s => s.code));
+  } catch(e) {
+    _avgDownQuoteCache = {};
+  }
+}
+
+function onAvgDownHoldingSelect() {
+  const code = document.getElementById('ad_holding').value;
+  if (!code) return;
+  const stocks = computeHoldings(allRows);
+  const s = stocks[code];
+  if (!s || s.holdQty <= 0) return;
+  const avg = Math.round(s.holdCost / s.holdQty);
+  document.getElementById('ad_avg').value = avg;
+  document.getElementById('ad_qty').value = s.holdQty;
+  const q = _avgDownQuoteCache && _avgDownQuoteCache[normalizeKrxCode(code)];
+  if (q && q.price) {
+    document.getElementById('ad_mkt').value = q.price;
+  }
+  runAvgDown();
+}
+
+function useMarketPriceForAdd() {
+  const mkt = document.getElementById('ad_mkt').value;
+  if (mkt) {
+    document.getElementById('ad_add_price').value = mkt;
+    runAvgDown();
+  }
+}
+
+function resetAvgDown() {
+  ['ad_avg','ad_qty','ad_add_qty','ad_add_price','ad_mkt'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('ad_holding').value = '';
+  runAvgDown();
+}
+
+function runAvgDown() {
+  const avg     = Number(document.getElementById('ad_avg').value) || 0;
+  const qty     = Number(document.getElementById('ad_qty').value) || 0;
+  const addQty  = Number(document.getElementById('ad_add_qty').value) || 0;
+  const addPr   = Number(document.getElementById('ad_add_price').value) || 0;
+  const mktRaw  = document.getElementById('ad_mkt').value;
+  const mkt     = mktRaw ? Number(mktRaw) : null;
+
+  const newAvgEl    = document.getElementById('ad_new_avg');
+  const newAvgSub   = document.getElementById('ad_new_avg_sub');
+  const newQtyEl    = document.getElementById('ad_new_qty');
+  const newQtySub   = document.getElementById('ad_new_qty_sub');
+  const newCostEl   = document.getElementById('ad_new_cost');
+  const newCostSub  = document.getElementById('ad_new_cost_sub');
+  const mktValueEl  = document.getElementById('ad_mkt_value');
+  const pnlEl       = document.getElementById('ad_pnl');
+  const pnlRateEl   = document.getElementById('ad_pnl_rate');
+
+  if (addQty <= 0 || addPr <= 0) {
+    newAvgEl.textContent = '—';
+    newAvgSub.textContent = '추가 매수 수량·단가 입력';
+    newQtyEl.textContent = '—';
+    newQtySub.textContent = '—';
+    newCostEl.textContent = '—';
+    newCostSub.textContent = '—';
+    mktValueEl.textContent = '—';
+    pnlEl.textContent = '—';
+    pnlRateEl.textContent = '—';
+    return;
+  }
+
+  const res = computeAverageDown({
+    avgPrice: avg,
+    currentQty: qty,
+    addQty,
+    addPrice: addPr,
+    currentMarketPrice: mkt,
+  });
+
+  newAvgEl.textContent = Math.round(res.newAvgPrice).toLocaleString() + '원';
+  const diff = avg > 0 ? (res.newAvgPrice - avg) : 0;
+  const diffSign = diff >= 0 ? '+' : '';
+  newAvgSub.textContent = avg > 0
+    ? `${diffSign}${Math.round(diff).toLocaleString()}원 (${((diff/avg)*100).toFixed(2)}%)`
+    : '신규 진입';
+  newAvgSub.style.color = diff <= 0 ? 'var(--green)' : 'var(--red)';
+
+  newQtyEl.textContent = res.newQty.toLocaleString() + '주';
+  newQtySub.textContent = `기존 ${qty.toLocaleString()} + 추가 ${addQty.toLocaleString()}`;
+
+  newCostEl.textContent = Math.round(res.newTotalCost).toLocaleString() + '원';
+  newCostSub.textContent = '추가 +' + Math.round(res.addCost).toLocaleString() + '원';
+
+  if (res.marketValue != null) {
+    mktValueEl.textContent = Math.round(res.marketValue).toLocaleString() + '원';
+    const pnlSign = res.unrealizedPnl >= 0 ? '+' : '';
+    pnlEl.textContent = pnlSign + Math.round(res.unrealizedPnl).toLocaleString() + '원';
+    pnlEl.className = 'value ' + (res.unrealizedPnl >= 0 ? 'text-green' : 'text-red');
+    pnlRateEl.textContent = (res.unrealizedRate >= 0 ? '+' : '') + res.unrealizedRate.toFixed(2) + '%';
+    pnlRateEl.style.color = res.unrealizedRate >= 0 ? 'var(--green)' : 'var(--red)';
+  } else {
+    mktValueEl.textContent = '시세 미입력';
+    pnlEl.textContent = '—';
+    pnlEl.className = 'value';
+    pnlRateEl.textContent = '—';
+  }
 }
 
 // ── 거래 추가 폼 ──

@@ -153,3 +153,49 @@ function computeCompound({ principal, annualRate, years, monthly = 0, compoundPe
     schedule,
   };
 }
+
+/**
+ * Averaging-down (물타기) calculator.
+ * Given a current holding (avgPrice × currentQty) and a planned
+ * additional buy (addQty × addPrice), compute the resulting position
+ * and, if currentMarketPrice is provided, the unrealized P/L.
+ *
+ * Inputs: { avgPrice, currentQty, addQty, addPrice, currentMarketPrice? }
+ * Output: {
+ *   newAvgPrice, newQty, newTotalCost,
+ *   currentCost, addCost,
+ *   marketValue?, unrealizedPnl?, unrealizedRate?
+ * }
+ */
+function computeAverageDown({ avgPrice, currentQty, addQty, addPrice, currentMarketPrice }) {
+  const a = Number(avgPrice) || 0;
+  const q = Number(currentQty) || 0;
+  const na = Number(addQty) || 0;
+  const np = Number(addPrice) || 0;
+
+  const currentCost = a * q;
+  const addCost = np * na;
+  const newQty = q + na;
+  const newTotalCost = currentCost + addCost;
+  const newAvgPrice = newQty > 0 ? newTotalCost / newQty : 0;
+
+  const out = {
+    newAvgPrice,
+    newQty,
+    newTotalCost,
+    currentCost,
+    addCost,
+  };
+
+  const mkt = Number(currentMarketPrice);
+  if (Number.isFinite(mkt) && mkt > 0) {
+    const marketValue = mkt * newQty;
+    const unrealizedPnl = marketValue - newTotalCost;
+    const unrealizedRate = newTotalCost > 0 ? (unrealizedPnl / newTotalCost * 100) : 0;
+    out.marketValue = marketValue;
+    out.unrealizedPnl = unrealizedPnl;
+    out.unrealizedRate = unrealizedRate;
+  }
+
+  return out;
+}

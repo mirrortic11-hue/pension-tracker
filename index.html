@@ -177,6 +177,15 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- ══ 거래 추가 페이지 ══ -->
+    <div class="page" id="page-add">
+      <div class="section-header">
+        <div class="section-title">거래 추가</div>
+        <button class="btn btn-secondary btn-sm" onclick="showPage('transactions')">← 목록으로</button>
+      </div>
+
       <!-- 엑셀 업로드 -->
       <div class="card">
         <div class="card-header">
@@ -207,19 +216,11 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- ══ 거래 추가 페이지 ══ -->
-    <div class="page" id="page-add">
-      <div class="section-header">
-        <div class="section-title">거래 추가</div>
-        <button class="btn btn-secondary btn-sm" onclick="showPage('transactions')">← 목록으로</button>
-      </div>
 
       <div class="card">
         <div class="card-header">
-          <span class="card-title">새 거래 입력</span>
-          <span style="font-size:11px;color:var(--text2);">구글 스프레드시트 '전체거래내역' 시트에 자동 추가됩니다</span>
+          <span class="card-title">수기 거래 입력</span>
+          <span style="font-size:11px;color:var(--text2);">단건 입력은 아래 폼을 사용하세요</span>
         </div>
         <div class="card-body">
           <div class="form-grid">

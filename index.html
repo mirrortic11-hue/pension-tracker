@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-14-audit-1b">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-14-tx-limit">
 </head>
 <body>
 
@@ -170,6 +170,11 @@
               </tr>
             </tbody>
           </table>
+        </div>
+        <div style="padding:10px 18px;border-top:1px solid var(--border);text-align:center;">
+          <button class="btn btn-secondary btn-sm" id="txLoadMoreBtn" onclick="showAllTx()" style="display:none;">
+            전체 거래내역 더보기
+          </button>
         </div>
         <div style="padding:10px 18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:12px;color:var(--text2);" id="rowCount">0 건</span>
@@ -541,12 +546,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-14-audit-1b"></script>
-<script src="src/supabase.js?v=2026-04-14-audit-1b"></script>
-<script src="src/quotes.js?v=2026-04-14-audit-1b"></script>
-<script src="src/format.js?v=2026-04-14-audit-1b"></script>
-<script src="src/calc.js?v=2026-04-14-audit-1b"></script>
-<script src="src/ui.js?v=2026-04-14-audit-1b"></script>
+<script src="src/config.js?v=2026-04-14-tx-limit"></script>
+<script src="src/supabase.js?v=2026-04-14-tx-limit"></script>
+<script src="src/quotes.js?v=2026-04-14-tx-limit"></script>
+<script src="src/format.js?v=2026-04-14-tx-limit"></script>
+<script src="src/calc.js?v=2026-04-14-tx-limit"></script>
+<script src="src/ui.js?v=2026-04-14-tx-limit"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -555,6 +560,7 @@ let SHEET_ID = "";
 let allRows = [];
 let filteredRows = [];
 let _loadAllDataPromise = null;
+let txShowAll = false;
 
 // 설정 복원 (거래 데이터는 Supabase; GAS URL은 레거시/선택)
 GAS_URL = localStorage.getItem('gasUrl') || '';
@@ -610,14 +616,29 @@ async function loadAllData() {
 function loadFromSheet() { loadAllData(); }
 
 // ── 테이블 렌더링 ──
-function renderTable(rows) {
+// rows는 원본(필터된) 전체. 화면엔 기본 30일 컷오프, 검색/필터/더보기 상태에서는 전량.
+function renderTable(rows, opts={}) {
   const tbody = document.getElementById('txBody');
+  const moreBtn = document.getElementById('txLoadMoreBtn');
+  const forceAll = !!opts.forceAll;
+
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><p>데이터가 없습니다</p></div></td></tr>';
     document.getElementById('rowCount').textContent = '0 건';
+    if (moreBtn) moreBtn.style.display = 'none';
     return;
   }
-  tbody.innerHTML = [...rows].reverse().map(r => {
+
+  const showLimited = !forceAll && !txShowAll;
+  let displayRows = rows;
+  if (showLimited) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    displayRows = rows.filter(r => String(r[0] || '') >= cutoffStr);
+  }
+
+  tbody.innerHTML = [...displayRows].reverse().map(r => {
     const type = r[1] || '';
     const badge = `<span class="badge-type badge-${type}">${type}</span>`;
     const amt = r[7] ? Number(r[7]).toLocaleString() : '';
@@ -636,19 +657,34 @@ function renderTable(rows) {
       <td class="td-right">${fee}</td>
     </tr>`;
   }).join('');
-  document.getElementById('rowCount').textContent = rows.length.toLocaleString() + ' 건';
+
+  const hiddenCnt = rows.length - displayRows.length;
+  if (showLimited && hiddenCnt > 0) {
+    document.getElementById('rowCount').textContent =
+      `최근 30일 ${displayRows.length.toLocaleString()}건 / 전체 ${rows.length.toLocaleString()}건`;
+    if (moreBtn) { moreBtn.style.display = ''; moreBtn.textContent = `전체 거래내역 더보기 (+${hiddenCnt.toLocaleString()}건)`; }
+  } else {
+    document.getElementById('rowCount').textContent = rows.length.toLocaleString() + ' 건';
+    if (moreBtn) moreBtn.style.display = 'none';
+  }
+}
+
+function showAllTx() {
+  txShowAll = true;
+  filterTable();
 }
 
 // ── 검색/필터 ──
 function filterTable() {
   const q = document.getElementById('searchInput').value.toLowerCase();
   const t = document.getElementById('filterType').value;
+  const active = !!(q || t);
   const filtered = allRows.filter(r => {
     const matchType = !t || (r[1] || '') === t;
     const matchQ = !q || [r[0],r[1],r[2],r[3],r[4]].join(' ').toLowerCase().includes(q);
     return matchType && matchQ;
   });
-  renderTable(filtered);
+  renderTable(filtered, { forceAll: active });
 }
 
 // ── 요약 (보유 기준, 증권사 MY자산과 매칭) ──

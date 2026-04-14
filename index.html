@@ -124,6 +124,34 @@
         </div>
       </div>
 
+      <!-- 복리 예상 -->
+      <div class="card" id="projectionCard">
+        <div class="card-header">
+          <span class="card-title" id="projTitle">복리 예상</span>
+          <span style="font-size:11px;color:var(--text2);" id="projNote">설정에서 목표 연도 등을 지정하세요</span>
+        </div>
+        <div class="card-body">
+          <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="summary-card">
+              <div class="label">목표 연도</div>
+              <div class="value text-blue" id="projTargetYear">—</div>
+              <div class="sub" id="projYears">—</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">예상 평가액</div>
+              <div class="value text-green" id="projFinal">—</div>
+              <div class="sub" id="projBase">현재 계좌 총액 기준</div>
+            </div>
+            <div class="summary-card">
+              <div class="label">예상 이자 누적</div>
+              <div class="value" id="projInterest">—</div>
+              <div class="sub" id="projRateInfo">—</div>
+            </div>
+          </div>
+          <div id="projChart" style="margin-top:16px;"></div>
+        </div>
+      </div>
+
       <!-- 거래내역 카드 -->
       <div class="card">
         <div class="card-header">
@@ -953,6 +981,7 @@ async function updateEvaluation(rows) {
     pnlEl.textContent  = '—';
     retEl.textContent  = '—';
     evalChange.textContent = '';
+    renderProjection(rows, 0);
     return;
   }
 
@@ -987,12 +1016,75 @@ async function updateEvaluation(rows) {
 
     evalChange.textContent = anyMissing ? '일부 시세 없음(추정)' : '실시간 시세 기준';
     evalChange.style.color = 'var(--text2)';
+
+    renderProjection(rows, totalEval);
   } catch(e) {
     evalEl.textContent = '시세 조회 실패';
     evalChange.textContent = '네트워크·종목코드·Yahoo 응답 확인';
     pnlEl.textContent = '—';
     retEl.textContent = '—';
+    renderProjection(rows, null);
   }
+}
+
+// ── 복리 예상 (거래내역 하단) ──
+function renderProjection(rows, evalAmt) {
+  const settings = getProjectionSettings();
+  const thisYear = new Date().getFullYear();
+  const years = Math.max(0, settings.targetYear - thisYear);
+
+  // 현재 계좌 총액 = 평가금액 (전달받음) + 현금예수금
+  // 평가금액 없으면 매입금액(holdCost)로 fallback
+  const flows = computeCashFlows(rows || []);
+  const stocks = computeHoldings(rows || []);
+  const totalCost = Object.values(stocks)
+    .filter(s => s.holdQty > 0)
+    .reduce((a,s) => a + s.holdCost, 0);
+  const marketSide = (Number.isFinite(Number(evalAmt)) && Number(evalAmt) > 0)
+    ? Number(evalAmt)
+    : totalCost;
+  const base = Math.round(marketSide + flows.cash);
+
+  const yearEl     = document.getElementById('projTargetYear');
+  const yearsEl    = document.getElementById('projYears');
+  const finalEl    = document.getElementById('projFinal');
+  const interestEl = document.getElementById('projInterest');
+  const baseEl     = document.getElementById('projBase');
+  const rateInfoEl = document.getElementById('projRateInfo');
+  const noteEl     = document.getElementById('projNote');
+  const titleEl    = document.getElementById('projTitle');
+  if (!yearEl || !finalEl) return;
+
+  yearEl.textContent  = settings.targetYear + '년';
+  yearsEl.textContent = years + '년 후';
+  baseEl.textContent  = '원금 ' + base.toLocaleString() + '원';
+  rateInfoEl.textContent = `연 ${settings.rate}%` +
+    (settings.monthly > 0 ? ` · 월 ${settings.monthly.toLocaleString()}원` : '');
+  titleEl.textContent = `복리 예상 (${settings.targetYear}년)`;
+
+  if (years <= 0 || base <= 0) {
+    finalEl.textContent = '—';
+    interestEl.textContent = '—';
+    noteEl.textContent = years <= 0
+      ? '목표 연도가 현재 연도보다 미래여야 합니다'
+      : '원금이 0보다 커야 합니다';
+    const chartEl = document.getElementById('projChart');
+    if (chartEl) chartEl.innerHTML = '';
+    return;
+  }
+
+  const result = computeCompound({
+    principal: base,
+    annualRate: settings.rate / 100,
+    years,
+    monthly: settings.monthly,
+  });
+
+  finalEl.textContent    = result.finalValue.toLocaleString() + '원';
+  interestEl.textContent = result.totalInterest.toLocaleString() + '원';
+  noteEl.textContent     = `${thisYear} → ${settings.targetYear}`;
+
+  // 차트는 다음 커밋에서 렌더링
 }
 
 // ── 포트폴리오 ──

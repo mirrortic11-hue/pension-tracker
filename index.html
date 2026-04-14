@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-14-pf-cash">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-14-tx-summary6">
 </head>
 <body>
 
@@ -86,29 +86,37 @@
     <!-- ══ 거래내역 페이지 ══ -->
     <div class="page active" id="page-transactions">
 
-      <!-- 요약 -->
-      <div class="summary-grid" id="summaryGrid">
+      <!-- 요약 (보유 기준) -->
+      <div class="summary-grid" id="summaryGrid" style="grid-template-columns:repeat(6,1fr)">
         <div class="summary-card">
-          <div class="label">총 입금액</div>
-          <div class="value text-blue" id="totalDeposit">—</div>
-          <div class="sub" id="depositCount">— 건</div>
+          <div class="label">매입금액</div>
+          <div class="value" id="totalCost">—</div>
+          <div class="sub">보유 기준</div>
         </div>
         <div class="summary-card">
-          <div class="label">현 평가액</div>
-          <div class="value" id="totalEval">
-            <span class="spinner"></span>
-          </div>
+          <div class="label">평가금액</div>
+          <div class="value" id="totalEval"><span class="spinner"></span></div>
           <div class="sub" id="evalChange">조회 중...</div>
         </div>
         <div class="summary-card">
-          <div class="label">총 분배금 수령</div>
+          <div class="label">평가손익</div>
+          <div class="value" id="totalPnl">—</div>
+          <div class="sub" id="totalPnlSub">평가금액 − 매입금액</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">수익률</div>
+          <div class="value" id="totalReturn">—</div>
+          <div class="sub" id="totalReturnSub">평가손익 / 매입금액</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">총 분배금</div>
           <div class="value text-green" id="totalDiv">—</div>
           <div class="sub" id="divCount">— 건</div>
         </div>
         <div class="summary-card">
-          <div class="label">총 수익률</div>
-          <div class="value" id="totalReturn">—</div>
-          <div class="sub" id="totalReturnSub">평가손익 / 총입금액</div>
+          <div class="label">분배율</div>
+          <div class="value text-green" id="totalDivRate">—</div>
+          <div class="sub">분배금 / 입금액</div>
         </div>
       </div>
 
@@ -284,33 +292,6 @@
       <div class="section-header">
         <div class="section-title">포트폴리오</div>
         <button class="btn btn-secondary btn-sm" onclick="loadPortfolio()">↻ 새로고침</button>
-      </div>
-
-      <!-- 요약 -->
-      <div class="summary-grid" style="grid-template-columns:repeat(5,1fr)">
-        <div class="summary-card">
-          <div class="label">총 입금액</div>
-          <div class="value text-blue" id="pfDeposit">—</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">현 평가액</div>
-          <div class="value" id="pfEval"><span class="spinner"></span></div>
-          <div class="sub" id="pfEvalSub">조회 중...</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">수익률</div>
-          <div class="value" id="pfReturn">—</div>
-          <div class="sub" id="pfReturnSub">평가손익 / 매수금액</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">총 분배금</div>
-          <div class="value text-green" id="pfDiv">—</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">분배율</div>
-          <div class="value text-green" id="pfDivRate">—</div>
-          <div class="sub">분배금 / 입금액</div>
-        </div>
       </div>
 
       <div class="card">
@@ -539,12 +520,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-14-pf-cash"></script>
-<script src="src/supabase.js?v=2026-04-14-pf-cash"></script>
-<script src="src/quotes.js?v=2026-04-14-pf-cash"></script>
-<script src="src/format.js?v=2026-04-14-pf-cash"></script>
-<script src="src/calc.js?v=2026-04-14-pf-cash"></script>
-<script src="src/ui.js?v=2026-04-14-pf-cash"></script>
+<script src="src/config.js?v=2026-04-14-tx-summary6"></script>
+<script src="src/supabase.js?v=2026-04-14-tx-summary6"></script>
+<script src="src/quotes.js?v=2026-04-14-tx-summary6"></script>
+<script src="src/format.js?v=2026-04-14-tx-summary6"></script>
+<script src="src/calc.js?v=2026-04-14-tx-summary6"></script>
+<script src="src/ui.js?v=2026-04-14-tx-summary6"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -643,82 +624,71 @@ function filterTable() {
   renderTable(filtered);
 }
 
-// ── 요약 ──
+// ── 요약 (보유 기준, 증권사 MY자산과 매칭) ──
 function updateSummary(rows) {
-  let deposit=0, depositCnt=0, buy=0, buyCnt=0, div=0, divCnt=0;
-  rows.forEach(r => {
-    const amt = Number(r[7]) || 0;
-    if (r[1] === '입금')      { deposit += amt; depositCnt++; }
-    if (r[1] === '매수')      { buy     += amt; buyCnt++; }
-    if (r[1] === '분배금입금'){ div     += amt; divCnt++; }
-  });
-  document.getElementById('totalDeposit').textContent = deposit.toLocaleString() + '원';
-  document.getElementById('depositCount').textContent = depositCnt + '건';
-  document.getElementById('totalDiv').textContent     = div.toLocaleString() + '원';
-  document.getElementById('divCount').textContent     = divCnt + '건';
-
-  // 현 평가액 & 총 수익률: 종목별 보유수량 × 현재가 (Yahoo Finance)
+  const flows = computeCashFlows(rows);
+  const divRate = flows.deposit > 0 ? (flows.div / flows.deposit * 100) : 0;
+  document.getElementById('totalDiv').textContent     = flows.div.toLocaleString() + '원';
+  document.getElementById('divCount').textContent     = '입금 ' + flows.deposit.toLocaleString() + '원';
+  document.getElementById('totalDivRate').textContent = (divRate >= 0 ? '+' : '') + divRate.toFixed(2) + '%';
   updateEvaluation(rows);
 }
 
-// 종목별 보유수량 계산 후 현재가 조회
 async function updateEvaluation(rows) {
-  const holding = computeNetPositions(rows);
+  const stocks = computeHoldings(rows);
+  const holding = Object.values(stocks).filter(s => s.holdQty > 0);
+
+  const costEl = document.getElementById('totalCost');
+  const evalEl = document.getElementById('totalEval');
+  const pnlEl  = document.getElementById('totalPnl');
+  const retEl  = document.getElementById('totalReturn');
+  const evalChange = document.getElementById('evalChange');
 
   if (!holding.length) {
-    document.getElementById('totalEval').textContent = '—';
-    document.getElementById('evalChange').textContent = '';
-    document.getElementById('totalReturn').textContent = '—';
-    document.getElementById('totalReturnSub').textContent = '';
+    costEl.textContent = '0원';
+    evalEl.textContent = '0원';
+    pnlEl.textContent  = '—';
+    retEl.textContent  = '—';
+    evalChange.textContent = '';
     return;
   }
 
+  const totalCost = holding.reduce((a,s) => a + s.holdCost, 0);
+  costEl.textContent = Math.round(totalCost).toLocaleString() + '원';
+
   try {
-    const codes = holding.map(s => s.code);
-    const quoteByNorm = await fetchKrxQuotesForCodes(codes);
-
-    let totalEval = 0, totalBuyAmt = 0;
-    let anyMissing = false;
+    const quoteByNorm = await fetchKrxQuotesForCodes(holding.map(s => s.code));
+    let totalEval = 0, anyMissing = false;
     holding.forEach(s => {
-      const n = normalizeKrxCode(s.code);
-      const price = quoteByNorm[n]?.price;
-      if (price == null || price <= 0) anyMissing = true;
-      const p = price && price > 0 ? price : 0;
-      totalEval += p * s.netQty;
-      totalBuyAmt += s.buyAmt;
+      const p = quoteByNorm[normalizeKrxCode(s.code)]?.price;
+      if (p == null || p <= 0) anyMissing = true;
+      totalEval += (p && p > 0 ? p : 0) * s.holdQty;
     });
-
     const allBad = holding.every(s => {
       const p = quoteByNorm[normalizeKrxCode(s.code)]?.price;
       return p == null || p <= 0;
     });
     if (allBad) throw new Error('no prices');
 
-    const evalEl  = document.getElementById('totalEval');
-    const profit  = totalEval - totalBuyAmt;
-    const retEl   = document.getElementById('totalReturn');
-    const retSub  = document.getElementById('totalReturnSub');
-    const evalChange = document.getElementById('evalChange');
+    const profit = totalEval - totalCost;
+    const rate = totalCost > 0 ? (profit / totalCost * 100) : 0;
 
-    evalEl.textContent = totalEval.toLocaleString() + '원';
-    evalEl.className   = 'value ' + (profit >= 0 ? 'text-green' : 'text-red');
+    evalEl.textContent = Math.round(totalEval).toLocaleString() + '원';
+    evalEl.className = 'value ' + (profit >= 0 ? 'text-green' : 'text-red');
 
-    const profitSign = profit >= 0 ? '+' : '';
-    let evalNote = profitSign + profit.toLocaleString() + '원 (매수대비)';
-    if (anyMissing) evalNote += ' · 일부 시세 없음(추정)';
-    evalChange.textContent = evalNote;
-    evalChange.style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
+    pnlEl.textContent = (profit >= 0 ? '+' : '') + Math.round(profit).toLocaleString() + '원';
+    pnlEl.className = 'value ' + (profit >= 0 ? 'text-green' : 'text-red');
 
-    const totalRate = totalBuyAmt > 0 ? ((totalEval - totalBuyAmt) / totalBuyAmt * 100) : 0;
-    retEl.textContent = (totalRate >= 0 ? '+' : '') + totalRate.toFixed(1) + '%';
-    retEl.className   = 'value ' + (totalRate >= 0 ? 'text-green' : 'text-red');
-    retSub.textContent = (profit >= 0 ? '+' : '') + profit.toLocaleString() + '원';
+    retEl.textContent = (rate >= 0 ? '+' : '') + rate.toFixed(2) + '%';
+    retEl.className = 'value ' + (rate >= 0 ? 'text-green' : 'text-red');
 
+    evalChange.textContent = anyMissing ? '일부 시세 없음(추정)' : '실시간 시세 기준';
+    evalChange.style.color = 'var(--text2)';
   } catch(e) {
-    document.getElementById('totalEval').textContent = '시세 조회 실패';
-    document.getElementById('evalChange').textContent = '네트워크·종목코드(6자리)·Yahoo 응답을 확인하세요';
-    document.getElementById('totalReturn').textContent = '—';
-    document.getElementById('totalReturnSub').textContent = '';
+    evalEl.textContent = '시세 조회 실패';
+    evalChange.textContent = '네트워크·종목코드·Yahoo 응답 확인';
+    pnlEl.textContent = '—';
+    retEl.textContent = '—';
   }
 }
 
@@ -727,43 +697,19 @@ async function loadPortfolio() {
   if (!allRows.length) await loadAllData();
   const stocks = computeHoldings(allRows);
 
-  // 상단 요약 + 하단 예수금
+  // 하단 현금예수금
   const flows = computeCashFlows(allRows);
-  const divRate = flows.deposit > 0 ? (flows.div / flows.deposit * 100) : 0;
-  document.getElementById('pfDeposit').textContent = flows.deposit.toLocaleString() + '원';
-  document.getElementById('pfDiv').textContent     = flows.div.toLocaleString() + '원';
-  document.getElementById('pfDivRate').textContent = (divRate >= 0 ? '+' : '') + divRate.toFixed(2) + '%';
-  document.getElementById('pfCash').textContent    = Math.round(flows.cash).toLocaleString() + '원';
+  document.getElementById('pfCash').textContent = Math.round(flows.cash).toLocaleString() + '원';
 
   const tbody = document.getElementById('portfolioBody');
   const holding = Object.values(stocks).filter(s => s.holdQty > 0);
 
   if (!holding.length) {
     tbody.innerHTML = '<tr><td colspan="14"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
-    document.getElementById('pfEval').textContent = '0원';
-    document.getElementById('pfEvalSub').textContent = '';
-    document.getElementById('pfReturn').textContent = '—';
     return;
   }
 
   const quotes = await fetchKrxQuotesForCodes(holding.map(s => s.code));
-
-  // 평가액 · 수익률 집계
-  let totalEval = 0, totalCost = 0;
-  holding.forEach(s => {
-    const p = quotes[normalizeKrxCode(s.code)]?.price;
-    if (p && p > 0) totalEval += p * s.holdQty;
-    totalCost += s.holdCost;
-  });
-  const profit = totalEval - totalCost;
-  const retRate = totalCost > 0 ? (profit / totalCost * 100) : 0;
-  const pfEvalEl = document.getElementById('pfEval');
-  const pfRetEl  = document.getElementById('pfReturn');
-  pfEvalEl.textContent = Math.round(totalEval).toLocaleString() + '원';
-  pfEvalEl.className = 'value ' + (profit >= 0 ? 'text-green' : 'text-red');
-  document.getElementById('pfEvalSub').textContent = (profit >= 0 ? '+' : '') + Math.round(profit).toLocaleString() + '원';
-  pfRetEl.textContent = (retRate >= 0 ? '+' : '') + retRate.toFixed(2) + '%';
-  pfRetEl.className   = 'value ' + (retRate >= 0 ? 'text-green' : 'text-red');
 
   tbody.innerHTML = holding.map(s => {
     const netQty = s.holdQty;

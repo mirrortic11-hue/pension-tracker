@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-14-proj-hover">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-14-proj-hover-fix">
 </head>
 <body>
 
@@ -759,12 +759,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-14-proj-hover"></script>
-<script src="src/supabase.js?v=2026-04-14-proj-hover"></script>
-<script src="src/quotes.js?v=2026-04-14-proj-hover"></script>
-<script src="src/format.js?v=2026-04-14-proj-hover"></script>
-<script src="src/calc.js?v=2026-04-14-proj-hover"></script>
-<script src="src/ui.js?v=2026-04-14-proj-hover"></script>
+<script src="src/config.js?v=2026-04-14-proj-hover-fix"></script>
+<script src="src/supabase.js?v=2026-04-14-proj-hover-fix"></script>
+<script src="src/quotes.js?v=2026-04-14-proj-hover-fix"></script>
+<script src="src/format.js?v=2026-04-14-proj-hover-fix"></script>
+<script src="src/calc.js?v=2026-04-14-proj-hover-fix"></script>
+<script src="src/ui.js?v=2026-04-14-proj-hover-fix"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1114,8 +1114,8 @@ function renderProjectionChart(schedule, base, startYear) {
   const maxY = Math.max.apply(null, points.map(p => p.balance));
   if (!(maxY > 0)) { el.innerHTML = ''; return; }
 
-  const W = 800, H = 260;
-  const pad = { top: 18, right: 20, bottom: 30, left: 64 };
+  const W = 800, H = 320;
+  const pad = { top: 22, right: 40, bottom: 34, left: 64 };
   const cw = W - pad.left - pad.right;
   const ch = H - pad.top - pad.bottom;
   const xAt = i => pad.left + (n > 1 ? (i / (n - 1)) * cw : cw / 2);
@@ -1197,12 +1197,10 @@ function renderProjectionChart(schedule, base, startYear) {
       </g>
     </svg>
     <div id="projHoverTip" style="
-         position:absolute;display:none;pointer-events:none;
+         position:absolute;display:none;pointer-events:none;left:0;top:0;
          background:var(--bg);border:1px solid var(--border);border-radius:6px;
          padding:6px 10px;font-size:11px;color:var(--text);white-space:nowrap;
-         box-shadow:0 4px 12px rgba(0,0,0,0.4);
-         transform:translate(-50%, calc(-100% - 10px));
-         line-height:1.5;"></div>`;
+         box-shadow:0 4px 12px rgba(0,0,0,0.4);line-height:1.5;"></div>`;
 
   // ── 호버 핸들러 ──
   const svg = el.querySelector('#projChartSvg');
@@ -1230,17 +1228,32 @@ function renderProjectionChart(schedule, base, startYear) {
     hoverDot.setAttribute('cx', px);
     hoverDot.setAttribute('cy', py);
 
-    const elRect = el.getBoundingClientRect();
-    const scaleX = r.width / W;
-    const scaleY = r.height / H;
-    const tipX = (r.left - elRect.left) + px * scaleX;
-    const tipY = (r.top  - elRect.top)  + py * scaleY;
-    tip.style.display = 'block';
-    tip.style.left = tipX + 'px';
-    tip.style.top  = tipY + 'px';
+    // 툴팁 내용 먼저 채우고 실측 크기로 위치 계산 (컨테이너 밖으로 튀지 않도록 clamp)
     tip.innerHTML =
       `<div style="font-weight:600;color:var(--text)">${startYear + p.year}년</div>` +
       `<div style="color:var(--accent)">${Math.round(p.balance).toLocaleString()}원</div>`;
+    tip.style.display = 'block';
+
+    const elRect = el.getBoundingClientRect();
+    const scaleX = r.width / W;
+    const scaleY = r.height / H;
+    const dotX = (r.left - elRect.left) + px * scaleX;
+    const dotY = (r.top  - elRect.top)  + py * scaleY;
+    const tipW = tip.offsetWidth;
+    const tipH = tip.offsetHeight;
+
+    // 세로: 기본은 도트 위, 너무 위쪽이면 도트 아래로 플립
+    let finalY = dotY - tipH - 12;
+    if (finalY < 4) finalY = dotY + 14;
+
+    // 가로: 도트 중앙 기준, 컨테이너 좌우 경계 안으로 clamp
+    let finalX = dotX - tipW / 2;
+    const maxX = elRect.width - tipW - 6;
+    if (finalX < 6) finalX = 6;
+    if (finalX > maxX) finalX = maxX;
+
+    tip.style.left = finalX + 'px';
+    tip.style.top  = finalY + 'px';
   }
   function hide() {
     hoverG.setAttribute('visibility', 'hidden');

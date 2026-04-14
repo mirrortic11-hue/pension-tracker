@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-14-projection">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-14-proj-hover">
 </head>
 <body>
 
@@ -759,12 +759,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-14-projection"></script>
-<script src="src/supabase.js?v=2026-04-14-projection"></script>
-<script src="src/quotes.js?v=2026-04-14-projection"></script>
-<script src="src/format.js?v=2026-04-14-projection"></script>
-<script src="src/calc.js?v=2026-04-14-projection"></script>
-<script src="src/ui.js?v=2026-04-14-projection"></script>
+<script src="src/config.js?v=2026-04-14-proj-hover"></script>
+<script src="src/supabase.js?v=2026-04-14-proj-hover"></script>
+<script src="src/quotes.js?v=2026-04-14-proj-hover"></script>
+<script src="src/format.js?v=2026-04-14-proj-hover"></script>
+<script src="src/calc.js?v=2026-04-14-proj-hover"></script>
+<script src="src/ui.js?v=2026-04-14-proj-hover"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1030,8 +1030,22 @@ async function updateEvaluation(rows) {
 // ── 복리 예상 (거래내역 하단) ──
 function renderProjection(rows, evalAmt) {
   const settings = getProjectionSettings();
-  const thisYear = new Date().getFullYear();
+  const now = new Date();
+  const thisYear = now.getFullYear();
   const years = Math.max(0, settings.targetYear - thisYear);
+
+  // 남은 기간 (년/개월) — 목표 연도 12월 31일 기준
+  const end = new Date(settings.targetYear, 11, 31);
+  let totalMonths = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth());
+  if (end.getDate() < now.getDate()) totalMonths -= 1;
+  totalMonths = Math.max(0, totalMonths);
+  const yy = Math.floor(totalMonths / 12);
+  const mm = totalMonths % 12;
+  const periodStr = `${yy}년 ${String(mm).padStart(2,'0')}개월`;
+  const monthlyStr = settings.monthly > 0
+    ? `월 ${settings.monthly.toLocaleString()}원 납입`
+    : '월 적립 없음';
+  const settingStr = `${periodStr} · ${monthlyStr} · 연 ${settings.rate}% 적용`;
 
   // 현재 계좌 총액 = 평가금액 (전달받음) + 현금예수금
   // 평가금액 없으면 매입금액(holdCost)로 fallback
@@ -1056,11 +1070,12 @@ function renderProjection(rows, evalAmt) {
   if (!yearEl || !finalEl) return;
 
   yearEl.textContent  = settings.targetYear + '년';
-  yearsEl.textContent = years + '년 후';
+  yearsEl.textContent = periodStr + ' 후';
   baseEl.textContent  = '원금 ' + base.toLocaleString() + '원';
   rateInfoEl.textContent = `연 ${settings.rate}%` +
     (settings.monthly > 0 ? ` · 월 ${settings.monthly.toLocaleString()}원` : '');
   titleEl.textContent = `복리 예상 (${settings.targetYear}년)`;
+  noteEl.textContent  = settingStr;
 
   if (years <= 0 || base <= 0) {
     finalEl.textContent = '—';
@@ -1082,12 +1097,11 @@ function renderProjection(rows, evalAmt) {
 
   finalEl.textContent    = result.finalValue.toLocaleString() + '원';
   interestEl.textContent = result.totalInterest.toLocaleString() + '원';
-  noteEl.textContent     = `${thisYear} → ${settings.targetYear}`;
 
   renderProjectionChart(result.schedule, base, thisYear);
 }
 
-// ── 예상 라인차트 (SVG) ──
+// ── 예상 라인차트 (SVG + hover 툴팁) ──
 function renderProjectionChart(schedule, base, startYear) {
   const el = document.getElementById('projChart');
   if (!el) return;
@@ -1107,7 +1121,6 @@ function renderProjectionChart(schedule, base, startYear) {
   const xAt = i => pad.left + (n > 1 ? (i / (n - 1)) * cw : cw / 2);
   const yAt = v => pad.top + ch - (v / maxY) * ch;
 
-  // 숫자 포맷터
   const fmtShort = v => {
     if (v >= 1e8) return (v / 1e8).toFixed(v >= 1e9 ? 0 : 1) + '억';
     if (v >= 1e4) return Math.round(v / 1e4).toLocaleString() + '만';
@@ -1134,19 +1147,28 @@ function renderProjectionChart(schedule, base, startYear) {
     <text x="${xAt(midIdx)}" y="${H - 10}" font-size="10" text-anchor="middle" style="fill:var(--text2)">${midYear}</text>
     <text x="${xAt(n - 1)}" y="${H - 10}" font-size="10" text-anchor="middle" style="fill:var(--text2)">${lastYear}</text>`;
 
-  // 라인 경로
+  // 라인/영역 경로
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(p.balance).toFixed(2)}`).join(' ');
   const areaPath = linePath +
     ` L ${xAt(n - 1).toFixed(2)} ${(pad.top + ch).toFixed(2)}` +
     ` L ${xAt(0).toFixed(2)} ${(pad.top + ch).toFixed(2)} Z`;
 
-  // 끝점 라벨
+  // 매년 작은 도트 (호버 대상)
+  const yearDots = points.map((p, i) =>
+    `<circle cx="${xAt(i).toFixed(2)}" cy="${yAt(p.balance).toFixed(2)}" r="2.5"
+             style="fill:var(--accent)" opacity="0.55"/>`
+  ).join('');
+
+  // 끝점
   const endPoint = points[n - 1];
   const endX = xAt(n - 1), endY = yAt(endPoint.balance);
   const endLabelX = Math.min(endX, pad.left + cw - 50);
 
+  // 컨테이너를 relative로 (툴팁 절대 위치)
+  el.style.position = 'relative';
+
   el.innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
+    <svg id="projChartSvg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
          style="width:100%;height:auto;max-height:280px;display:block;font-family:inherit;">
       <defs>
         <linearGradient id="projChartGrad" x1="0" y1="0" x2="0" y2="1">
@@ -1158,6 +1180,7 @@ function renderProjectionChart(schedule, base, startYear) {
       <path d="${areaPath}" fill="url(#projChartGrad)"/>
       <path d="${linePath}" fill="none" style="stroke:var(--accent)"
             stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${yearDots}
       <circle cx="${xAt(0).toFixed(2)}" cy="${yAt(points[0].balance).toFixed(2)}" r="4"
               style="fill:var(--accent)"/>
       <circle cx="${endX.toFixed(2)}" cy="${endY.toFixed(2)}" r="5"
@@ -1166,7 +1189,72 @@ function renderProjectionChart(schedule, base, startYear) {
             font-size="11" font-weight="600" text-anchor="end"
             style="fill:var(--green)">${fmtShort(endPoint.balance)}원</text>
       ${xLabels}
-    </svg>`;
+      <g id="projHoverG" visibility="hidden" pointer-events="none">
+        <line id="projHoverLine" y1="${pad.top}" y2="${pad.top + ch}"
+              style="stroke:var(--text2)" stroke-width="1" stroke-dasharray="3,3"/>
+        <circle id="projHoverDot" r="5"
+                style="fill:var(--accent);stroke:var(--bg2)" stroke-width="2"/>
+      </g>
+    </svg>
+    <div id="projHoverTip" style="
+         position:absolute;display:none;pointer-events:none;
+         background:var(--bg);border:1px solid var(--border);border-radius:6px;
+         padding:6px 10px;font-size:11px;color:var(--text);white-space:nowrap;
+         box-shadow:0 4px 12px rgba(0,0,0,0.4);
+         transform:translate(-50%, calc(-100% - 10px));
+         line-height:1.5;"></div>`;
+
+  // ── 호버 핸들러 ──
+  const svg = el.querySelector('#projChartSvg');
+  const hoverG = el.querySelector('#projHoverG');
+  const hoverLine = el.querySelector('#projHoverLine');
+  const hoverDot = el.querySelector('#projHoverDot');
+  const tip = el.querySelector('#projHoverTip');
+  if (!svg || !hoverG || !tip) return;
+
+  function showAt(clientX, clientY) {
+    const r = svg.getBoundingClientRect();
+    if (r.width <= 0) return;
+    const relX = clientX - r.left;
+    const vbX = (relX / r.width) * W;
+    let best = 0, bestDist = Infinity;
+    for (let i = 0; i < n; i++) {
+      const d = Math.abs(xAt(i) - vbX);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    const p = points[best];
+    const px = xAt(best), py = yAt(p.balance);
+    hoverG.setAttribute('visibility', 'visible');
+    hoverLine.setAttribute('x1', px);
+    hoverLine.setAttribute('x2', px);
+    hoverDot.setAttribute('cx', px);
+    hoverDot.setAttribute('cy', py);
+
+    const elRect = el.getBoundingClientRect();
+    const scaleX = r.width / W;
+    const scaleY = r.height / H;
+    const tipX = (r.left - elRect.left) + px * scaleX;
+    const tipY = (r.top  - elRect.top)  + py * scaleY;
+    tip.style.display = 'block';
+    tip.style.left = tipX + 'px';
+    tip.style.top  = tipY + 'px';
+    tip.innerHTML =
+      `<div style="font-weight:600;color:var(--text)">${startYear + p.year}년</div>` +
+      `<div style="color:var(--accent)">${Math.round(p.balance).toLocaleString()}원</div>`;
+  }
+  function hide() {
+    hoverG.setAttribute('visibility', 'hidden');
+    tip.style.display = 'none';
+  }
+  svg.addEventListener('mousemove', e => showAt(e.clientX, e.clientY));
+  svg.addEventListener('mouseleave', hide);
+  svg.addEventListener('touchstart', e => {
+    if (e.touches && e.touches[0]) showAt(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  svg.addEventListener('touchmove', e => {
+    if (e.touches && e.touches[0]) showAt(e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: true });
+  svg.addEventListener('touchend', hide);
 }
 
 // ── 포트폴리오 ──

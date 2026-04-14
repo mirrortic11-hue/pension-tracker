@@ -894,6 +894,23 @@ async function submitTransaction() {
   if (!date || !type || !amount) {
     showToast('날짜, 구분, 거래금액은 필수입니다', 'error'); return;
   }
+  const amtNum = Number(amount);
+  if (!Number.isFinite(amtNum) || amtNum <= 0) {
+    showToast('거래금액은 0보다 큰 숫자여야 합니다', 'error'); return;
+  }
+  const isTrade = (type === '매수' || type === '매도');
+  if (isTrade) {
+    const qtyNum = Number(qty), priceNum = Number(price);
+    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+      showToast('매수/매도는 수량이 0보다 커야 합니다', 'error'); return;
+    }
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      showToast('매수/매도는 단가가 0보다 커야 합니다', 'error'); return;
+    }
+  }
+  if (fee && !Number.isFinite(Number(fee))) {
+    showToast('수수료는 숫자여야 합니다', 'error'); return;
+  }
 
   try {
     await sbFetch('transactions', {

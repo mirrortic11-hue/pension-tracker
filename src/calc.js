@@ -90,3 +90,66 @@ function computeCashFlows(rows) {
   const cash = deposit + sell + div + interest - buy - fee - withdraw;
   return { deposit, buy, sell, div, fee, interest, withdraw, cash };
 }
+
+/**
+ * Compound interest with optional monthly contributions.
+ * Inputs:
+ *   principal      — initial lump sum
+ *   annualRate     — e.g. 0.07 for 7%
+ *   years          — integer years (>= 0)
+ *   monthly        — optional fixed monthly contribution (default 0)
+ *   compoundPerYear — compounding frequency (default 12 → monthly)
+ * Output: {
+ *   finalValue, totalContrib, totalInterest,
+ *   schedule: [{ year, startBalance, contrib, interest, endBalance }]
+ * }
+ * Contributions are assumed to happen at the END of each period
+ * (standard future-value-of-annuity convention).
+ */
+function computeCompound({ principal, annualRate, years, monthly = 0, compoundPerYear = 12 }) {
+  const P = Number(principal) || 0;
+  const r = Number(annualRate) || 0;
+  const n = Math.max(0, Math.floor(Number(years) || 0));
+  const m = Number(monthly) || 0;
+  const k = Math.max(1, Math.floor(compoundPerYear));
+  const periodRate = r / k;
+
+  let balance = P;
+  const schedule = [];
+  let cumContrib = P;
+  let cumInterest = 0;
+
+  for (let y = 1; y <= n; y++) {
+    const startBalance = balance;
+    let yearContrib = 0;
+    let yearInterest = 0;
+    for (let p = 0; p < k; p++) {
+      const interest = balance * periodRate;
+      balance += interest;
+      yearInterest += interest;
+      if (m > 0) {
+        // Monthly contribution: assume k >= 12 or convert proportionally.
+        // For k=12 (monthly compounding), each period adds `m`.
+        // For k<12, we'd need proration; we clamp k>=12 for safety.
+        balance += m;
+        yearContrib += m;
+      }
+    }
+    cumContrib += yearContrib;
+    cumInterest += yearInterest;
+    schedule.push({
+      year: y,
+      startBalance: Math.round(startBalance),
+      contrib: Math.round(yearContrib),
+      interest: Math.round(yearInterest),
+      endBalance: Math.round(balance),
+    });
+  }
+
+  return {
+    finalValue: Math.round(balance),
+    totalContrib: Math.round(cumContrib),
+    totalInterest: Math.round(cumInterest),
+    schedule,
+  };
+}

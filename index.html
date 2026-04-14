@@ -585,6 +585,34 @@
         <div class="section-title">설정</div>
       </div>
 
+      <!-- 복리 예상 설정 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">복리 예상 설정 (개인연금 1)</span>
+          <span style="font-size:11px;color:var(--text2);">거래내역 하단에 목표 연도까지의 복리 예상이 표시됩니다</span>
+        </div>
+        <div class="card-body">
+          <div class="form-grid">
+            <div class="input-group">
+              <label>목표 연도</label>
+              <input type="number" id="proj_year" placeholder="예: 2045" min="2020" max="2200">
+            </div>
+            <div class="input-group">
+              <label>예상 연 수익률 (%)</label>
+              <input type="number" id="proj_rate" placeholder="예: 7" step="0.1" min="0" max="100">
+            </div>
+            <div class="input-group">
+              <label>월 적립금 (원, 선택)</label>
+              <input type="number" id="proj_monthly" placeholder="0" min="0">
+            </div>
+          </div>
+          <div class="flex-row" style="margin-top:12px;">
+            <button class="btn btn-primary btn-sm" onclick="saveProjectionForm()">저장</button>
+            <span style="font-size:11px;color:var(--text2);align-self:center;">원금 기준: 현재 평가금액 + 현금예수금</span>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header">
           <span class="card-title">구글 스프레드시트 연동</span>
@@ -724,6 +752,18 @@ GAS_URL = localStorage.getItem('gasUrl') || '';
 SHEET_ID = localStorage.getItem('sheetId') || '';
 document.getElementById('gasUrl').value = GAS_URL;
 document.getElementById('sheetId').value = SHEET_ID;
+
+// 복리 예상 설정 폼 복원
+(function _restoreProjectionForm() {
+  const s = getProjectionSettings();
+  const yEl = document.getElementById('proj_year');
+  const rEl = document.getElementById('proj_rate');
+  const mEl = document.getElementById('proj_monthly');
+  if (yEl) yEl.value = s.targetYear;
+  if (rEl) rEl.value = s.rate;
+  if (mEl) mEl.value = s.monthly || '';
+})();
+
 loadAllData();
 
 // ── 설정 저장 ──
@@ -733,6 +773,49 @@ function saveSettings() {
   localStorage.setItem('gasUrl',  GAS_URL);
   localStorage.setItem('sheetId', SHEET_ID);
   loadAllData();
+}
+
+// ── 복리 예상 설정 (계좌별) ──
+function getProjectionSettings() {
+  const defaults = { targetYear: new Date().getFullYear() + 20, rate: 7, monthly: 0 };
+  try {
+    const raw = localStorage.getItem('projection:' + ACCOUNT_ID);
+    if (!raw) return defaults;
+    const o = JSON.parse(raw);
+    return {
+      targetYear: Number.isFinite(Number(o.targetYear)) ? Number(o.targetYear) : defaults.targetYear,
+      rate:       Number.isFinite(Number(o.rate))       ? Number(o.rate)       : defaults.rate,
+      monthly:    Number.isFinite(Number(o.monthly))    ? Number(o.monthly)    : defaults.monthly,
+    };
+  } catch(e) {
+    return defaults;
+  }
+}
+
+function saveProjectionForm() {
+  const targetYear = Number(document.getElementById('proj_year').value);
+  const rate       = Number(document.getElementById('proj_rate').value);
+  const monthly    = Number(document.getElementById('proj_monthly').value) || 0;
+  const thisYear = new Date().getFullYear();
+  if (!Number.isFinite(targetYear) || targetYear < thisYear || targetYear > thisYear + 100) {
+    showToast(`목표 연도는 ${thisYear}~${thisYear+100} 사이여야 합니다`, 'error'); return;
+  }
+  if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+    showToast('예상 수익률은 0~100(%) 사이 숫자여야 합니다', 'error'); return;
+  }
+  if (!Number.isFinite(monthly) || monthly < 0) {
+    showToast('월 적립금은 0 이상 숫자여야 합니다', 'error'); return;
+  }
+  try {
+    localStorage.setItem('projection:' + ACCOUNT_ID, JSON.stringify({ targetYear, rate, monthly }));
+    showToast('복리 예상 설정이 저장되었습니다', 'success');
+    // 저장 직후 거래내역 예상 섹션 즉시 갱신 (존재할 때만)
+    if (allRows.length && typeof renderProjection === 'function') {
+      renderProjection(allRows, null);
+    }
+  } catch(e) {
+    showToast('저장 실패: ' + e.message, 'error');
+  }
 }
 
 // ── 연결 상태 ──

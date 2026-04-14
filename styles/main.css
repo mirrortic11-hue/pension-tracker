@@ -74,6 +74,34 @@ header {
   height: calc(100vh - 56px);
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sidebar-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.sidebar-toggle:hover { color: var(--text); background: var(--bg3); }
+.sidebar-toggle svg { width: 16px; height: 16px; }
+
+.layout.sidebar-collapsed aside {
+  width: 0;
+  padding: 0;
+  border-right: none;
+  overflow: hidden;
+}
+
 /* ── 사이드바 ── */
 aside {
   width: 220px;

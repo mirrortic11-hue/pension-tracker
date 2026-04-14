@@ -2,6 +2,23 @@
 // No app state. Depends only on DOM and on page-loaders defined in the
 // main inline script (loadPortfolio, loadDividend, loadDeposit).
 
+function toggleSidebar() {
+  const layout = document.querySelector('.layout');
+  if (!layout) return;
+  const collapsed = layout.classList.toggle('sidebar-collapsed');
+  try { localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
+}
+
+(function initSidebarState() {
+  try {
+    if (localStorage.getItem('sidebarCollapsed') === '1') {
+      document.addEventListener('DOMContentLoaded', () => {
+        document.querySelector('.layout')?.classList.add('sidebar-collapsed');
+      });
+    }
+  } catch (e) {}
+})();
+
 function showToast(msg, type='info') {
   const el = document.getElementById('toast');
   el.textContent = msg;

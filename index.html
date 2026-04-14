@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-14-sidebar-toggle">
 </head>
 <body>
 
 <!-- ── 헤더 ── -->
 <header>
-  <div class="logo">pension<span>/</span>tracker</div>
+  <div class="header-left">
+    <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="메뉴 접기/펼치기" aria-label="메뉴 접기/펼치기">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5zm0 4a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5zm0 4a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/></svg>
+    </button>
+    <div class="logo">pension<span>/</span>tracker</div>
+  </div>
   <div class="header-right">
     <div class="sheet-status" id="sheetStatus">
       <div class="dot"></div>
@@ -500,12 +505,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-13-modular-5"></script>
-<script src="src/supabase.js?v=2026-04-13-modular-5"></script>
-<script src="src/quotes.js?v=2026-04-13-modular-5"></script>
-<script src="src/format.js?v=2026-04-13-modular-5"></script>
-<script src="src/calc.js?v=2026-04-13-modular-5"></script>
-<script src="src/ui.js?v=2026-04-13-modular-5"></script>
+<script src="src/config.js?v=2026-04-14-sidebar-toggle"></script>
+<script src="src/supabase.js?v=2026-04-14-sidebar-toggle"></script>
+<script src="src/quotes.js?v=2026-04-14-sidebar-toggle"></script>
+<script src="src/format.js?v=2026-04-14-sidebar-toggle"></script>
+<script src="src/calc.js?v=2026-04-14-sidebar-toggle"></script>
+<script src="src/ui.js?v=2026-04-14-sidebar-toggle"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──

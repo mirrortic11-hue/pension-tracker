@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-14-proj-hover-fix">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-proj-svg-tip">
 </head>
 <body>
 
@@ -759,12 +759,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-14-proj-hover-fix"></script>
-<script src="src/supabase.js?v=2026-04-14-proj-hover-fix"></script>
-<script src="src/quotes.js?v=2026-04-14-proj-hover-fix"></script>
-<script src="src/format.js?v=2026-04-14-proj-hover-fix"></script>
-<script src="src/calc.js?v=2026-04-14-proj-hover-fix"></script>
-<script src="src/ui.js?v=2026-04-14-proj-hover-fix"></script>
+<script src="src/config.js?v=2026-04-15-proj-svg-tip"></script>
+<script src="src/supabase.js?v=2026-04-15-proj-svg-tip"></script>
+<script src="src/quotes.js?v=2026-04-15-proj-svg-tip"></script>
+<script src="src/format.js?v=2026-04-15-proj-svg-tip"></script>
+<script src="src/calc.js?v=2026-04-15-proj-svg-tip"></script>
+<script src="src/ui.js?v=2026-04-15-proj-svg-tip"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1194,21 +1194,31 @@ function renderProjectionChart(schedule, base, startYear) {
               style="stroke:var(--text2)" stroke-width="1" stroke-dasharray="3,3"/>
         <circle id="projHoverDot" r="5"
                 style="fill:var(--accent);stroke:var(--bg2)" stroke-width="2"/>
+        <rect id="projTipBg" x="0" y="0" width="150" height="44" rx="5"
+              style="fill:var(--bg2);stroke:var(--border)" stroke-width="1"/>
+        <text id="projTipYear" x="0" y="0" font-size="12" font-weight="700"
+              style="fill:var(--text)"></text>
+        <text id="projTipVal" x="0" y="0" font-size="12" font-weight="600"
+              style="fill:var(--accent)"></text>
       </g>
-    </svg>
-    <div id="projHoverTip" style="
-         position:absolute;display:none;pointer-events:none;left:0;top:0;
-         background:var(--bg);border:1px solid var(--border);border-radius:6px;
-         padding:6px 10px;font-size:11px;color:var(--text);white-space:nowrap;
-         box-shadow:0 4px 12px rgba(0,0,0,0.4);line-height:1.5;"></div>`;
+    </svg>`;
 
-  // ── 호버 핸들러 ──
+  // ── 호버 핸들러 (모든 좌표는 viewBox 기준이라 컨테이너 패딩/오버플로 영향 없음) ──
   const svg = el.querySelector('#projChartSvg');
   const hoverG = el.querySelector('#projHoverG');
   const hoverLine = el.querySelector('#projHoverLine');
   const hoverDot = el.querySelector('#projHoverDot');
-  const tip = el.querySelector('#projHoverTip');
-  if (!svg || !hoverG || !tip) return;
+  const tipBg = el.querySelector('#projTipBg');
+  const tipYear = el.querySelector('#projTipYear');
+  const tipVal = el.querySelector('#projTipVal');
+  if (!svg || !hoverG || !tipBg || !tipYear || !tipVal) return;
+
+  // 툴팁 박스 크기 (viewBox 단위)
+  const TIP_W = 150;
+  const TIP_H = 44;
+  const TIP_PAD_X = 12;
+  const TIP_PAD_Y = 17;
+  const TIP_LINE_H = 16;
 
   function showAt(clientX, clientY) {
     const r = svg.getBoundingClientRect();
@@ -1222,42 +1232,32 @@ function renderProjectionChart(schedule, base, startYear) {
     }
     const p = points[best];
     const px = xAt(best), py = yAt(p.balance);
-    hoverG.setAttribute('visibility', 'visible');
+
     hoverLine.setAttribute('x1', px);
     hoverLine.setAttribute('x2', px);
     hoverDot.setAttribute('cx', px);
     hoverDot.setAttribute('cy', py);
 
-    // 툴팁 내용 먼저 채우고 실측 크기로 위치 계산 (컨테이너 밖으로 튀지 않도록 clamp)
-    tip.innerHTML =
-      `<div style="font-weight:600;color:var(--text)">${startYear + p.year}년</div>` +
-      `<div style="color:var(--accent)">${Math.round(p.balance).toLocaleString()}원</div>`;
-    tip.style.display = 'block';
+    // 툴팁 위치: viewBox 좌표계, 도트 위에 배치 후 경계 clamp
+    let tipX = px - TIP_W / 2;
+    let tipY = py - TIP_H - 12;
+    if (tipX < 4) tipX = 4;
+    if (tipX + TIP_W > W - 4) tipX = W - TIP_W - 4;
+    if (tipY < pad.top) tipY = py + 14;
 
-    const elRect = el.getBoundingClientRect();
-    const scaleX = r.width / W;
-    const scaleY = r.height / H;
-    const dotX = (r.left - elRect.left) + px * scaleX;
-    const dotY = (r.top  - elRect.top)  + py * scaleY;
-    const tipW = tip.offsetWidth;
-    const tipH = tip.offsetHeight;
+    tipBg.setAttribute('x', tipX);
+    tipBg.setAttribute('y', tipY);
+    tipYear.setAttribute('x', tipX + TIP_PAD_X);
+    tipYear.setAttribute('y', tipY + TIP_PAD_Y);
+    tipYear.textContent = `${startYear + p.year}년`;
+    tipVal.setAttribute('x', tipX + TIP_PAD_X);
+    tipVal.setAttribute('y', tipY + TIP_PAD_Y + TIP_LINE_H);
+    tipVal.textContent = `${Math.round(p.balance).toLocaleString()}원`;
 
-    // 세로: 기본은 도트 위, 너무 위쪽이면 도트 아래로 플립
-    let finalY = dotY - tipH - 12;
-    if (finalY < 4) finalY = dotY + 14;
-
-    // 가로: 도트 중앙 기준, 컨테이너 좌우 경계 안으로 clamp
-    let finalX = dotX - tipW / 2;
-    const maxX = elRect.width - tipW - 6;
-    if (finalX < 6) finalX = 6;
-    if (finalX > maxX) finalX = maxX;
-
-    tip.style.left = finalX + 'px';
-    tip.style.top  = finalY + 'px';
+    hoverG.setAttribute('visibility', 'visible');
   }
   function hide() {
     hoverG.setAttribute('visibility', 'hidden');
-    tip.style.display = 'none';
   }
   svg.addEventListener('mousemove', e => showAt(e.clientX, e.clientY));
   svg.addEventListener('mouseleave', hide);

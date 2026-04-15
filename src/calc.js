@@ -94,56 +94,65 @@ function computeCashFlows(rows) {
 /**
  * Compound interest with optional monthly contributions.
  * Inputs:
- *   principal      — initial lump sum
- *   annualRate     — e.g. 0.07 for 7%
- *   years          — integer years (>= 0)
- *   monthly        — optional fixed monthly contribution (default 0)
- *   compoundPerYear — compounding frequency (default 12 → monthly)
+ *   principal   — initial lump sum
+ *   annualRate  — e.g. 0.07 for 7%
+ *   years       — integer years (>= 0). Ignored if `months` provided.
+ *   months      — optional explicit period length in months (>= 0).
+ *                 Takes precedence over years. Enables sub-year periods.
+ *   monthly     — optional fixed monthly contribution (default 0)
  * Output: {
  *   finalValue, totalContrib, totalInterest,
  *   schedule: [{ year, startBalance, contrib, interest, endBalance }]
  * }
- * Contributions are assumed to happen at the END of each period
- * (standard future-value-of-annuity convention).
+ * The engine always compounds monthly. The schedule emits one entry per
+ * 12-month boundary; if the period does not divide evenly, the final
+ * entry represents the remaining partial year.
  */
-function computeCompound({ principal, annualRate, years, monthly = 0, compoundPerYear = 12 }) {
+function computeCompound({ principal, annualRate, years, months, monthly = 0 }) {
   const P = Number(principal) || 0;
   const r = Number(annualRate) || 0;
-  const n = Math.max(0, Math.floor(Number(years) || 0));
   const m = Number(monthly) || 0;
-  const k = Math.max(1, Math.floor(compoundPerYear));
-  const periodRate = r / k;
+  let totalMonths;
+  if (Number.isFinite(Number(months))) {
+    totalMonths = Math.max(0, Math.floor(Number(months)));
+  } else {
+    totalMonths = Math.max(0, Math.floor(Number(years) || 0)) * 12;
+  }
+  const periodRate = r / 12;
 
   let balance = P;
   const schedule = [];
   let cumContrib = P;
   let cumInterest = 0;
 
-  for (let y = 1; y <= n; y++) {
-    const startBalance = balance;
-    let yearContrib = 0;
-    let yearInterest = 0;
-    for (let p = 0; p < k; p++) {
-      const interest = balance * periodRate;
-      balance += interest;
-      yearInterest += interest;
-      if (m > 0) {
-        // Monthly contribution: assume k >= 12 or convert proportionally.
-        // For k=12 (monthly compounding), each period adds `m`.
-        // For k<12, we'd need proration; we clamp k>=12 for safety.
-        balance += m;
-        yearContrib += m;
-      }
+  let yearStartBalance = P;
+  let yearContrib = 0;
+  let yearInterest = 0;
+
+  for (let i = 1; i <= totalMonths; i++) {
+    const interest = balance * periodRate;
+    balance += interest;
+    yearInterest += interest;
+    cumInterest += interest;
+    if (m > 0) {
+      balance += m;
+      yearContrib += m;
+      cumContrib += m;
     }
-    cumContrib += yearContrib;
-    cumInterest += yearInterest;
-    schedule.push({
-      year: y,
-      startBalance: Math.round(startBalance),
-      contrib: Math.round(yearContrib),
-      interest: Math.round(yearInterest),
-      endBalance: Math.round(balance),
-    });
+    const isYearEnd = (i % 12 === 0);
+    const isLast = (i === totalMonths);
+    if (isYearEnd || isLast) {
+      schedule.push({
+        year: schedule.length + 1,
+        startBalance: Math.round(yearStartBalance),
+        contrib: Math.round(yearContrib),
+        interest: Math.round(yearInterest),
+        endBalance: Math.round(balance),
+      });
+      yearStartBalance = balance;
+      yearContrib = 0;
+      yearInterest = 0;
+    }
   }
 
   return {

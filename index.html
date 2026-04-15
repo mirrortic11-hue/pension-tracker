@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-etf-code-fix">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-proj-months">
 </head>
 <body>
 
@@ -792,12 +792,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-etf-code-fix"></script>
-<script src="src/supabase.js?v=2026-04-15-etf-code-fix"></script>
-<script src="src/quotes.js?v=2026-04-15-etf-code-fix"></script>
-<script src="src/format.js?v=2026-04-15-etf-code-fix"></script>
-<script src="src/calc.js?v=2026-04-15-etf-code-fix"></script>
-<script src="src/ui.js?v=2026-04-15-etf-code-fix"></script>
+<script src="src/config.js?v=2026-04-15-proj-months"></script>
+<script src="src/supabase.js?v=2026-04-15-proj-months"></script>
+<script src="src/quotes.js?v=2026-04-15-proj-months"></script>
+<script src="src/format.js?v=2026-04-15-proj-months"></script>
+<script src="src/calc.js?v=2026-04-15-proj-months"></script>
+<script src="src/ui.js?v=2026-04-15-proj-months"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1139,9 +1139,8 @@ function renderProjection(rows, evalAmt) {
   const settings = getProjectionSettings();
   const now = new Date();
   const thisYear = now.getFullYear();
-  const years = Math.max(0, settings.targetYear - thisYear);
 
-  // 남은 기간 (년/개월) — 목표 연도 12월 31일 기준
+  // 남은 기간 (월 단위) — 목표 연도 12월 31일 기준
   const end = new Date(settings.targetYear, 11, 31);
   let totalMonths = (end.getFullYear() - now.getFullYear()) * 12 + (end.getMonth() - now.getMonth());
   if (end.getDate() < now.getDate()) totalMonths -= 1;
@@ -1184,11 +1183,11 @@ function renderProjection(rows, evalAmt) {
   titleEl.textContent = `복리 예상 (${settings.targetYear}년)`;
   noteEl.textContent  = settingStr;
 
-  if (years <= 0 || base <= 0) {
+  if (totalMonths <= 0 || base <= 0) {
     finalEl.textContent = '—';
     interestEl.textContent = '—';
-    noteEl.textContent = years <= 0
-      ? '목표 연도가 현재 연도보다 미래여야 합니다'
+    noteEl.textContent = totalMonths <= 0
+      ? '목표 연도의 12월 31일이 오늘 이후여야 합니다'
       : '원금이 0보다 커야 합니다';
     const chartEl = document.getElementById('projChart');
     if (chartEl) chartEl.innerHTML = '';
@@ -1198,18 +1197,18 @@ function renderProjection(rows, evalAmt) {
   const result = computeCompound({
     principal: base,
     annualRate: settings.rate / 100,
-    years,
+    months: totalMonths,
     monthly: settings.monthly,
   });
 
   finalEl.textContent    = result.finalValue.toLocaleString() + '원';
   interestEl.textContent = result.totalInterest.toLocaleString() + '원';
 
-  renderProjectionChart(result.schedule, base, thisYear);
+  renderProjectionChart(result.schedule, base, thisYear, settings.targetYear);
 }
 
 // ── 예상 라인차트 (SVG + hover 툴팁) ──
-function renderProjectionChart(schedule, base, startYear) {
+function renderProjectionChart(schedule, base, startYear, endYear) {
   const el = document.getElementById('projChart');
   if (!el) return;
   if (!schedule || !schedule.length) { el.innerHTML = ''; return; }
@@ -1246,14 +1245,14 @@ function renderProjectionChart(schedule, base, startYear) {
             style="fill:var(--text2)">${fmtShort(val)}</text>`;
   }).join('');
 
-  // X 라벨: 시작/중간/끝
-  const lastYear = startYear + (n - 1);
+  // X 라벨: 시작/중간/끝 — endYear(목표 연도) 직접 사용, sub-year 기간도 대응
+  const finalYear = Number.isFinite(Number(endYear)) ? Number(endYear) : (startYear + (n - 1));
   const midIdx = Math.floor((n - 1) / 2);
-  const midYear = startYear + midIdx;
+  const midYear = Math.round((startYear + finalYear) / 2);
   const xLabels = `
     <text x="${xAt(0)}" y="${H - 10}" font-size="10" text-anchor="middle" style="fill:var(--text2)">${startYear}</text>
-    <text x="${xAt(midIdx)}" y="${H - 10}" font-size="10" text-anchor="middle" style="fill:var(--text2)">${midYear}</text>
-    <text x="${xAt(n - 1)}" y="${H - 10}" font-size="10" text-anchor="middle" style="fill:var(--text2)">${lastYear}</text>`;
+    ${n >= 3 ? `<text x="${xAt(midIdx)}" y="${H - 10}" font-size="10" text-anchor="middle" style="fill:var(--text2)">${midYear}</text>` : ''}
+    <text x="${xAt(n - 1)}" y="${H - 10}" font-size="10" text-anchor="middle" style="fill:var(--text2)">${finalYear}</text>`;
 
   // 라인/영역 경로
   const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xAt(i).toFixed(2)} ${yAt(p.balance).toFixed(2)}`).join(' ');
@@ -1361,7 +1360,11 @@ function renderProjectionChart(schedule, base, startYear) {
     tipBg.setAttribute('y', tipY);
     tipYear.setAttribute('x', tipX + TIP_PAD_X);
     tipYear.setAttribute('y', tipY + TIP_PAD_Y);
-    tipYear.textContent = `${startYear + p.year}년`;
+    // 마지막 포인트는 endYear(목표연도) 사용 — 부분 연도도 정확히 라벨링
+    const labelYear = (best === n - 1 && Number.isFinite(Number(endYear)))
+      ? Number(endYear)
+      : (startYear + p.year);
+    tipYear.textContent = `${labelYear}년`;
     tipVal.setAttribute('x', tipX + TIP_PAD_X);
     tipVal.setAttribute('y', tipY + TIP_PAD_Y + TIP_LINE_H);
     tipVal.textContent = `${Math.round(p.balance).toLocaleString()}원`;

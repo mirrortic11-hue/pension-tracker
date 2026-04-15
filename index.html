@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-lazy-switch">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-submenu-split">
 </head>
 <body>
 
@@ -41,18 +41,17 @@
             <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
           </svg>
         </div>
-        <!-- account-submenu: 단일 DOM 노드, switchAccount 시 활성 계좌 아래로 이동됨 -->
         <div class="account-submenu">
-          <div class="nav-item nav-sub active" data-route="transactions" onclick="showPage('transactions')">거래내역</div>
-          <div class="nav-item nav-sub" data-route="portfolio" onclick="showPage('portfolio')">포트폴리오</div>
-          <div class="nav-item nav-sub" data-route="dividend" onclick="showPage('dividend')">분배금</div>
-          <div class="nav-item nav-sub" data-route="deposit" onclick="showPage('deposit')">입금내역</div>
-          <div class="nav-item nav-sub" data-route="account-settings" onclick="showPage('account-settings')">설정</div>
+          <div class="nav-item nav-sub active" data-account="pension_1" data-route="transactions"     onclick="selectSubMenu('pension_1','transactions')">거래내역</div>
+          <div class="nav-item nav-sub"        data-account="pension_1" data-route="portfolio"        onclick="selectSubMenu('pension_1','portfolio')">포트폴리오</div>
+          <div class="nav-item nav-sub"        data-account="pension_1" data-route="dividend"         onclick="selectSubMenu('pension_1','dividend')">분배금</div>
+          <div class="nav-item nav-sub"        data-account="pension_1" data-route="deposit"          onclick="selectSubMenu('pension_1','deposit')">입금내역</div>
+          <div class="nav-item nav-sub"        data-account="pension_1" data-route="account-settings" onclick="selectSubMenu('pension_1','account-settings')">설정</div>
         </div>
       </div>
 
       <!-- 개인연금 2 -->
-      <div class="account-group" id="account-pension_2">
+      <div class="account-group collapsed" id="account-pension_2">
         <div class="account-item" onclick="handleAccountClick('pension_2')">
           <span>🏦</span>
           <span>개인연금 2</span>
@@ -60,10 +59,17 @@
             <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
           </svg>
         </div>
+        <div class="account-submenu">
+          <div class="nav-item nav-sub" data-account="pension_2" data-route="transactions"     onclick="selectSubMenu('pension_2','transactions')">거래내역</div>
+          <div class="nav-item nav-sub" data-account="pension_2" data-route="portfolio"        onclick="selectSubMenu('pension_2','portfolio')">포트폴리오</div>
+          <div class="nav-item nav-sub" data-account="pension_2" data-route="dividend"         onclick="selectSubMenu('pension_2','dividend')">분배금</div>
+          <div class="nav-item nav-sub" data-account="pension_2" data-route="deposit"          onclick="selectSubMenu('pension_2','deposit')">입금내역</div>
+          <div class="nav-item nav-sub" data-account="pension_2" data-route="account-settings" onclick="selectSubMenu('pension_2','account-settings')">설정</div>
+        </div>
       </div>
 
       <!-- ISA 계좌 -->
-      <div class="account-group" id="account-isa_1">
+      <div class="account-group collapsed" id="account-isa_1">
         <div class="account-item" onclick="handleAccountClick('isa_1')">
           <span>💼</span>
           <span>ISA 계좌</span>
@@ -71,10 +77,17 @@
             <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
           </svg>
         </div>
+        <div class="account-submenu">
+          <div class="nav-item nav-sub" data-account="isa_1" data-route="transactions"     onclick="selectSubMenu('isa_1','transactions')">거래내역</div>
+          <div class="nav-item nav-sub" data-account="isa_1" data-route="portfolio"        onclick="selectSubMenu('isa_1','portfolio')">포트폴리오</div>
+          <div class="nav-item nav-sub" data-account="isa_1" data-route="dividend"         onclick="selectSubMenu('isa_1','dividend')">분배금</div>
+          <div class="nav-item nav-sub" data-account="isa_1" data-route="deposit"          onclick="selectSubMenu('isa_1','deposit')">입금내역</div>
+          <div class="nav-item nav-sub" data-account="isa_1" data-route="account-settings" onclick="selectSubMenu('isa_1','account-settings')">설정</div>
+        </div>
       </div>
 
       <!-- 퇴직연금 IRP -->
-      <div class="account-group" id="account-retirement_irp">
+      <div class="account-group collapsed" id="account-retirement_irp">
         <div class="account-item" onclick="handleAccountClick('retirement_irp')">
           <span>📋</span>
           <span>퇴직연금 IRP</span>
@@ -82,16 +95,30 @@
             <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
           </svg>
         </div>
+        <div class="account-submenu">
+          <div class="nav-item nav-sub" data-account="retirement_irp" data-route="transactions"     onclick="selectSubMenu('retirement_irp','transactions')">거래내역</div>
+          <div class="nav-item nav-sub" data-account="retirement_irp" data-route="portfolio"        onclick="selectSubMenu('retirement_irp','portfolio')">포트폴리오</div>
+          <div class="nav-item nav-sub" data-account="retirement_irp" data-route="dividend"         onclick="selectSubMenu('retirement_irp','dividend')">분배금</div>
+          <div class="nav-item nav-sub" data-account="retirement_irp" data-route="deposit"          onclick="selectSubMenu('retirement_irp','deposit')">입금내역</div>
+          <div class="nav-item nav-sub" data-account="retirement_irp" data-route="account-settings" onclick="selectSubMenu('retirement_irp','account-settings')">설정</div>
+        </div>
       </div>
 
       <!-- 퇴직연금 DC -->
-      <div class="account-group" id="account-retirement_dc">
+      <div class="account-group collapsed" id="account-retirement_dc">
         <div class="account-item" onclick="handleAccountClick('retirement_dc')">
           <span>📋</span>
           <span>퇴직연금 DC</span>
           <svg class="account-chevron" viewBox="0 0 16 16" fill="currentColor">
             <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
           </svg>
+        </div>
+        <div class="account-submenu">
+          <div class="nav-item nav-sub" data-account="retirement_dc" data-route="transactions"     onclick="selectSubMenu('retirement_dc','transactions')">거래내역</div>
+          <div class="nav-item nav-sub" data-account="retirement_dc" data-route="portfolio"        onclick="selectSubMenu('retirement_dc','portfolio')">포트폴리오</div>
+          <div class="nav-item nav-sub" data-account="retirement_dc" data-route="dividend"         onclick="selectSubMenu('retirement_dc','dividend')">분배금</div>
+          <div class="nav-item nav-sub" data-account="retirement_dc" data-route="deposit"          onclick="selectSubMenu('retirement_dc','deposit')">입금내역</div>
+          <div class="nav-item nav-sub" data-account="retirement_dc" data-route="account-settings" onclick="selectSubMenu('retirement_dc','account-settings')">설정</div>
         </div>
       </div>
     </div>
@@ -821,12 +848,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-lazy-switch"></script>
-<script src="src/supabase.js?v=2026-04-15-lazy-switch"></script>
-<script src="src/quotes.js?v=2026-04-15-lazy-switch"></script>
-<script src="src/format.js?v=2026-04-15-lazy-switch"></script>
-<script src="src/calc.js?v=2026-04-15-lazy-switch"></script>
-<script src="src/ui.js?v=2026-04-15-lazy-switch"></script>
+<script src="src/config.js?v=2026-04-15-submenu-split"></script>
+<script src="src/supabase.js?v=2026-04-15-submenu-split"></script>
+<script src="src/quotes.js?v=2026-04-15-submenu-split"></script>
+<script src="src/format.js?v=2026-04-15-submenu-split"></script>
+<script src="src/calc.js?v=2026-04-15-submenu-split"></script>
+<script src="src/ui.js?v=2026-04-15-submenu-split"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── Money input formatting ──
@@ -911,33 +938,44 @@ function _restoreProjectionForm() {
 }
 _restoreProjectionForm();
 
-// 초기 로드 전, localStorage에 저장된 활성 계좌가 pension_1이 아니면 DOM만 먼저 맞춰줌
+// 초기 로드: localStorage에 저장된 활성 계좌를 기본 HTML 상태보다 우선 적용
 if (currentAccountId !== 'pension_1' && ACCOUNT_NAMES[currentAccountId]) {
   const targetGroup = document.getElementById('account-' + currentAccountId);
   if (targetGroup) {
+    // 기본 HTML의 active 표시 제거 후 persisted 계좌로 이전
     document.querySelectorAll('.account-item').forEach(el => el.classList.remove('active'));
     targetGroup.querySelector('.account-item')?.classList.add('active');
-    const submenu = document.querySelector('.account-submenu');
-    if (submenu && submenu.parentNode !== targetGroup) {
-      targetGroup.appendChild(submenu);
-    }
+    // persisted 활성 계좌 그룹은 펼친 상태, 그 외 기본 pension_1은 접힘으로
+    targetGroup.classList.remove('collapsed');
+    const defaultGroup = document.getElementById('account-pension_1');
+    if (defaultGroup) defaultGroup.classList.add('collapsed');
+    // nav-sub의 active 표시도 이전: pension_1의 거래내역 → persisted 계좌의 거래내역
+    document.querySelectorAll('.nav-item.nav-sub.active').forEach(n => n.classList.remove('active'));
+    targetGroup.querySelector('.nav-item.nav-sub[data-route="transactions"]')?.classList.add('active');
   }
 }
 
 loadAllData();
 
-// ── 계좌 전환 ──
+// ── 계좌 사이드바 ──
+// 계좌 헤더 클릭 = 단순히 그 그룹의 접기/펼치기 토글만. 활성 전환은 없음.
+// 실제 계좌 전환 + 데이터 로딩은 submenu 클릭에서 일어남.
 function handleAccountClick(id) {
   if (!ACCOUNT_NAMES[id]) return;
-  if (id === currentAccountId) {
-    // 같은 계좌 재클릭 → 하위 메뉴 접기/펼치기
-    toggleAccount(id);
-    return;
-  }
-  switchAccount(id);
+  toggleAccount(id);
 }
 
-function switchAccount(id) {
+// submenu 클릭 — 소분류 선택 = 해당 계좌를 활성화(+데이터 fetch) + 해당 페이지로 이동
+function selectSubMenu(accountId, route) {
+  if (!ACCOUNT_NAMES[accountId] || !route) return;
+  if (accountId !== currentAccountId) {
+    switchAccount(accountId, route);
+  } else {
+    showPage(route);
+  }
+}
+
+function switchAccount(id, route) {
   if (!ACCOUNT_NAMES[id]) return;
   currentAccountId = id;
   try { localStorage.setItem('currentAccountId', id); } catch (e) {}
@@ -947,15 +985,11 @@ function switchAccount(id) {
   const newGroup = document.getElementById('account-' + id);
   if (!newGroup) return;
   newGroup.querySelector('.account-item')?.classList.add('active');
-
-  // account-submenu DOM을 새 계좌 아래로 이동
-  const submenu = document.querySelector('.account-submenu');
-  if (submenu && submenu.parentNode !== newGroup) {
-    newGroup.appendChild(submenu);
-  }
+  // 새 활성 계좌는 펼친 상태로 (submenu 접근성)
   newGroup.classList.remove('collapsed');
+  try { localStorage.setItem('account-collapsed:' + id, '0'); } catch (e) {}
 
-  // 데이터 리셋 — 이전 계좌 캐시 제거. fetch는 submenu 재라우팅에서 일어남.
+  // 데이터 리셋 — 이전 계좌 캐시 제거. fetch는 showPage 경로에서 일어남.
   allRows = [];
   const tbody = document.getElementById('txBody');
   if (tbody) tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>';
@@ -963,10 +997,8 @@ function switchAccount(id) {
   // 복리 예상 설정 폼 새 계좌 기준으로 갱신
   _restoreProjectionForm();
 
-  // 현재 활성 서브메뉴가 가리키는 경로로 re-route → 해당 페이지 로더가 데이터 fetch
-  const activeSub = (submenu || newGroup).querySelector('.nav-sub.active');
-  const route = activeSub?.getAttribute('data-route') || 'transactions';
-  showPage(route);
+  // 요청된 route로 네비게이션 (기본 거래내역)
+  showPage(route || 'transactions');
 
   showToast(ACCOUNT_NAMES[id] + '(으)로 전환', 'info');
 }

@@ -52,9 +52,11 @@ function showPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const page = document.getElementById('page-' + name);
   if (page) page.classList.add('active');
-  // data-route 기반 매칭 — 같은 라벨("설정")이 여러 위치에 있어도 정확히 구분됨
+  // data-route 매칭. nav-sub는 data-account 스코프로 현재 활성 계좌만 표시.
+  const accId = (typeof currentAccountId !== 'undefined') ? currentAccountId : null;
   document.querySelectorAll('.nav-item[data-route="' + name + '"]').forEach(n => {
-    n.classList.add('active');
+    const acc = n.getAttribute('data-account');
+    if (!acc || acc === accId) n.classList.add('active');
   });
   if (name === 'transactions' && typeof loadAllData === 'function'
       && (typeof allRows === 'undefined' || !allRows.length)) {

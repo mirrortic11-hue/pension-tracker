@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-yoc">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-current-yield">
 </head>
 <body>
 
@@ -174,7 +174,7 @@
         <div class="summary-card">
           <div class="label">연 배당수익률</div>
           <div class="value text-green" id="totalDivRate">—</div>
-          <div class="sub" id="totalDivRateSub">최근 12개월 / 매입금액</div>
+          <div class="sub" id="totalDivRateSub">최근 12개월 / 평가금액</div>
         </div>
       </div>
 
@@ -848,12 +848,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-yoc"></script>
-<script src="src/supabase.js?v=2026-04-15-yoc"></script>
-<script src="src/quotes.js?v=2026-04-15-yoc"></script>
-<script src="src/format.js?v=2026-04-15-yoc"></script>
-<script src="src/calc.js?v=2026-04-15-yoc"></script>
-<script src="src/ui.js?v=2026-04-15-yoc"></script>
+<script src="src/config.js?v=2026-04-15-current-yield"></script>
+<script src="src/supabase.js?v=2026-04-15-current-yield"></script>
+<script src="src/quotes.js?v=2026-04-15-current-yield"></script>
+<script src="src/format.js?v=2026-04-15-current-yield"></script>
+<script src="src/calc.js?v=2026-04-15-current-yield"></script>
+<script src="src/ui.js?v=2026-04-15-current-yield"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── Money input formatting ──
@@ -991,7 +991,7 @@ function clearAccountViews() {
   setHtml('totalReturn', spinner);
   setHtml('totalDiv',  spinner);
   setHtml('totalDivRate', spinner);
-  setText('totalDivRateSub', '최근 12개월 / 매입금액');
+  setText('totalDivRateSub', '최근 12개월 / 평가금액');
   resetCls('totalEval'); resetCls('totalPnl'); resetCls('totalReturn');
   setText('divCount', dash);
   setText('totalPnlSub', '평가금액 − 매입금액');
@@ -1355,36 +1355,43 @@ function filterTable() {
 function updateSummary(rows) {
   const flows = computeCashFlows(rows);
 
-  // 누적 분배금
+  // 누적 분배금 카드 (평가금액과 무관하므로 여기서 바로 설정)
   document.getElementById('totalDiv').textContent = flows.div.toLocaleString() + '원';
   document.getElementById('divCount').textContent = '입금 ' + flows.deposit.toLocaleString() + '원';
 
-  // 연 배당수익률 (YoC): 최근 12개월 분배금 / 현재 보유 매입원가
-  // 최근 12개월 데이터가 없으면 누적 / 매입원가로 fallback
-  const stocks = computeHoldings(rows);
-  const totalCost = Object.values(stocks)
-    .filter(s => s.holdQty > 0)
-    .reduce((a,s) => a + s.holdCost, 0);
+  // 연 배당수익률은 평가금액(실시간 시세)이 필요하므로 updateEvaluation 안에서 계산·표시
+  updateEvaluation(rows);
+}
 
+// 최근 12개월 분배금 합계
+function recentDividendTTM(rows) {
   const now = new Date();
   const cutoff = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
   const pad = (n) => String(n).padStart(2, '0');
   const cutoffStr = `${cutoff.getFullYear()}-${pad(cutoff.getMonth()+1)}-${pad(cutoff.getDate())}`;
-  const recentDiv = rows
+  return rows
     .filter(r => r[1] === '분배금입금' && String(r[0] || '') >= cutoffStr)
     .reduce((a,r) => a + (Number(r[7]) || 0), 0);
+}
 
+// 배당수익률 카드 업데이트 — denom(평가금액 선호, fallback 매입원가)으로 계산
+function updateDivRateCard(rows, denom, denomLabel) {
   const divRateEl = document.getElementById('totalDivRate');
   const divRateSub = document.getElementById('totalDivRateSub');
-  if (totalCost > 0) {
+  if (!divRateEl) return;
+
+  const flows = computeCashFlows(rows);
+  const recentDiv = recentDividendTTM(rows);
+
+  if (denom > 0) {
     if (recentDiv > 0) {
-      const yoc = recentDiv / totalCost * 100;
-      divRateEl.textContent = (yoc >= 0 ? '+' : '') + yoc.toFixed(2) + '%';
-      if (divRateSub) divRateSub.textContent = `최근 12개월 ${Math.round(recentDiv).toLocaleString()}원 / 매입금액`;
+      const rate = recentDiv / denom * 100;
+      divRateEl.textContent = (rate >= 0 ? '+' : '') + rate.toFixed(2) + '%';
+      if (divRateSub) divRateSub.textContent = `최근 12개월 ${Math.round(recentDiv).toLocaleString()}원 / ${denomLabel}`;
     } else if (flows.div > 0) {
-      const cum = flows.div / totalCost * 100;
+      const cum = flows.div / denom * 100;
       divRateEl.textContent = (cum >= 0 ? '+' : '') + cum.toFixed(2) + '%';
-      if (divRateSub) divRateSub.textContent = '누적 / 매입금액 (12개월 데이터 부족)';
+      if (divRateSub) divRateSub.textContent = `누적 / ${denomLabel} (12개월 데이터 부족)`;
     } else {
       divRateEl.textContent = '0.00%';
       if (divRateSub) divRateSub.textContent = '분배금 없음';
@@ -1393,8 +1400,6 @@ function updateSummary(rows) {
     divRateEl.textContent = '—';
     if (divRateSub) divRateSub.textContent = '보유 종목 없음';
   }
-
-  updateEvaluation(rows);
 }
 
 async function updateEvaluation(rows) {
@@ -1413,6 +1418,7 @@ async function updateEvaluation(rows) {
     pnlEl.textContent  = '—';
     retEl.textContent  = '—';
     evalChange.textContent = '';
+    updateDivRateCard(rows, 0, '평가금액');
     renderProjection(rows, 0);
     return;
   }
@@ -1449,12 +1455,17 @@ async function updateEvaluation(rows) {
     evalChange.textContent = anyMissing ? '일부 시세 없음(추정)' : '실시간 시세 기준';
     evalChange.style.color = 'var(--text2)';
 
+    // 연 배당수익률 — 평가금액(Current Yield) 기준
+    updateDivRateCard(rows, totalEval, '평가금액');
+
     renderProjection(rows, totalEval);
   } catch(e) {
     evalEl.textContent = '시세 조회 실패';
     evalChange.textContent = '네트워크·종목코드·Yahoo 응답 확인';
     pnlEl.textContent = '—';
     retEl.textContent = '—';
+    // 시세 조회 실패 시 매입원가로 fallback
+    updateDivRateCard(rows, totalCost, '매입금액 (시세 실패)');
     renderProjection(rows, null);
   }
 }

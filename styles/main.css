@@ -449,7 +449,7 @@ tbody td {
 /* ── 요약 카드 ── */
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
 .summary-card {
@@ -457,6 +457,11 @@ tbody td {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
+  min-width: 0; /* grid 아이템 내부 긴 텍스트가 grid를 밀어내지 않게 */
+  overflow: hidden;
+}
+.summary-card .value {
+  overflow-wrap: anywhere;
 }
 .summary-card .label {
   font-size: 11px;
@@ -551,8 +556,8 @@ tbody td {
 .empty-state p { font-size: 14px; margin-top: 8px; }
 
 /* ── 반응형 ── */
+/* .summary-grid는 auto-fit + minmax로 자체 반응형 — 미디어쿼리 불필요 */
 @media (max-width: 900px) {
-  .summary-grid { grid-template-columns: repeat(2, 1fr); }
   aside { width: 180px; }
 }
 

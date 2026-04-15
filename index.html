@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-account-toggle">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-responsive-grid">
 </head>
 <body>
 
@@ -95,7 +95,7 @@
     <div class="page active" id="page-transactions">
 
       <!-- 요약 (보유 기준) -->
-      <div class="summary-grid" id="summaryGrid" style="grid-template-columns:repeat(6,1fr)">
+      <div class="summary-grid" id="summaryGrid">
         <div class="summary-card">
           <div class="label">매입금액</div>
           <div class="value" id="totalCost">—</div>
@@ -135,7 +135,7 @@
           <span style="font-size:11px;color:var(--text2);" id="projNote">설정에서 목표 연도 등을 지정하세요</span>
         </div>
         <div class="card-body">
-          <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="summary-grid">
             <div class="summary-card">
               <div class="label">목표 연도</div>
               <div class="value text-blue" id="projTargetYear">—</div>
@@ -378,7 +378,7 @@
         <div class="section-title">분배금 내역</div>
       </div>
 
-      <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="summary-grid">
         <div class="summary-card">
           <div class="label">총 분배금 수령</div>
           <div class="value text-green" id="divTotal2">—</div>
@@ -420,7 +420,7 @@
         <div class="section-title">입금 내역</div>
       </div>
 
-      <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="summary-grid">
         <div class="summary-card">
           <div class="label">총 입금액</div>
           <div class="value text-blue" id="depTotal">—</div>
@@ -498,7 +498,7 @@
 
             <div class="divider"></div>
 
-            <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="summary-grid">
               <div class="summary-card">
                 <div class="label">최종 평가액</div>
                 <div class="value text-blue" id="cc_final">—</div>
@@ -576,7 +576,7 @@
 
             <div class="divider"></div>
 
-            <div class="summary-grid" style="grid-template-columns:repeat(3,1fr)">
+            <div class="summary-grid">
               <div class="summary-card">
                 <div class="label">새 평균단가</div>
                 <div class="value text-blue" id="ad_new_avg">—</div>
@@ -594,7 +594,7 @@
               </div>
             </div>
 
-            <div class="summary-grid" style="grid-template-columns:repeat(2,1fr);margin-top:12px;">
+            <div class="summary-grid" style="margin-top:12px">
               <div class="summary-card">
                 <div class="label">평가금액 (현재 시세 기준)</div>
                 <div class="value" id="ad_mkt_value">—</div>
@@ -763,12 +763,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-account-toggle"></script>
-<script src="src/supabase.js?v=2026-04-15-account-toggle"></script>
-<script src="src/quotes.js?v=2026-04-15-account-toggle"></script>
-<script src="src/format.js?v=2026-04-15-account-toggle"></script>
-<script src="src/calc.js?v=2026-04-15-account-toggle"></script>
-<script src="src/ui.js?v=2026-04-15-account-toggle"></script>
+<script src="src/config.js?v=2026-04-15-responsive-grid"></script>
+<script src="src/supabase.js?v=2026-04-15-responsive-grid"></script>
+<script src="src/quotes.js?v=2026-04-15-responsive-grid"></script>
+<script src="src/format.js?v=2026-04-15-responsive-grid"></script>
+<script src="src/calc.js?v=2026-04-15-responsive-grid"></script>
+<script src="src/ui.js?v=2026-04-15-responsive-grid"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-excel-dates">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-skip-dedup">
 </head>
 <body>
 
@@ -792,12 +792,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-excel-dates"></script>
-<script src="src/supabase.js?v=2026-04-15-excel-dates"></script>
-<script src="src/quotes.js?v=2026-04-15-excel-dates"></script>
-<script src="src/format.js?v=2026-04-15-excel-dates"></script>
-<script src="src/calc.js?v=2026-04-15-excel-dates"></script>
-<script src="src/ui.js?v=2026-04-15-excel-dates"></script>
+<script src="src/config.js?v=2026-04-15-skip-dedup"></script>
+<script src="src/supabase.js?v=2026-04-15-skip-dedup"></script>
+<script src="src/quotes.js?v=2026-04-15-skip-dedup"></script>
+<script src="src/format.js?v=2026-04-15-skip-dedup"></script>
+<script src="src/calc.js?v=2026-04-15-skip-dedup"></script>
+<script src="src/ui.js?v=2026-04-15-skip-dedup"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1871,8 +1871,15 @@ function processExcel(file) {
         '예탁금이용료입금': '예탁금이용료', '이체송금': '이체송금'
       };
 
+      // 의도적 스킵: 현금 반대편 기록이거나 항상 0인 메타 항목.
+      //  주식매수출금 = 매수의 현금쪽 (주식매수입고와 짝)
+      //  주식매도입금 = 매도의 현금쪽 (주식매도출고와 짝)
+      //  배당세출금   = 분배금 세금 메타 (ISA 비과세라 보통 0)
+      const INTENTIONAL_SKIP = new Set(['주식매수출금', '주식매도입금', '배당세출금']);
+
       const parsed = [];
       const skipped = {};
+      const deduped = {};
       let i = 2;
       while (i < raw.length - 1) {
         const r1 = raw[i], r2 = raw[i+1];
@@ -1885,12 +1892,20 @@ function processExcel(file) {
             r2[2] || '', r2[3] || '', r1[5] || '', r1[7] || ''
           ]);
         } else if (txType) {
-          skipped[txType] = (skipped[txType] || 0) + 1;
+          if (INTENTIONAL_SKIP.has(txType)) {
+            deduped[txType] = (deduped[txType] || 0) + 1;
+          } else {
+            skipped[txType] = (skipped[txType] || 0) + 1;
+          }
         }
         i += 2;
       }
 
+      const dedupedCnt = Object.values(deduped).reduce((a,b)=>a+b,0);
       const skippedCnt = Object.values(skipped).reduce((a,b)=>a+b,0);
+      const dedupedNote = dedupedCnt > 0
+        ? `<div style="color:var(--text2);font-size:11px;margin-bottom:6px;">ℹ 중복 방지용 자동 제외 ${dedupedCnt}건: ${Object.entries(deduped).map(([k,v])=>`${k} ${v}건`).join(', ')}</div>`
+        : '';
       const skippedNote = skippedCnt > 0
         ? `<div style="color:var(--yellow);font-size:12px;margin-bottom:8px;">⚠ ${skippedCnt}건 스킵 (알 수 없는 거래종류): ${Object.entries(skipped).map(([k,v])=>`${k} ${v}건`).join(', ')}</div>`
         : '';
@@ -1905,6 +1920,7 @@ function processExcel(file) {
             저장 대상: <span style="color:var(--green);font-weight:600;">${destName}</span>
             <span style="color:var(--text2);"> · 좌측에서 다른 계좌로 전환 후 업로드하면 해당 계좌로 저장됩니다</span>
           </div>
+          ${dedupedNote}
           ${skippedNote}
           <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">아래 버튼을 클릭하면 확인 창이 한 번 더 뜹니다</div>
           <button class="btn btn-green btn-sm" onclick="uploadToSheet(${JSON.stringify(parsed).replace(/"/g,'&quot;')})">

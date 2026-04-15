@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-cc-contrib">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-money-comma">
 </head>
 <body>
 
@@ -342,15 +342,15 @@
             </div>
             <div class="input-group" id="f_price_group">
               <label>단가 (원)</label>
-              <input type="number" id="f_price" placeholder="0" oninput="calcAmount()">
+              <input type="text" inputmode="numeric" class="money-input" id="f_price" placeholder="0" oninput="calcAmount()">
             </div>
             <div class="input-group">
               <label>거래금액 (원) *</label>
-              <input type="number" id="f_amount" placeholder="0">
+              <input type="text" inputmode="numeric" class="money-input" id="f_amount" placeholder="0">
             </div>
             <div class="input-group" id="f_fee_group">
               <label>수수료 (원)</label>
-              <input type="number" id="f_fee" placeholder="0">
+              <input type="text" inputmode="numeric" class="money-input" id="f_fee" placeholder="0">
             </div>
           </div>
 
@@ -510,7 +510,7 @@
             <div class="form-grid">
               <div class="input-group">
                 <label>원금 (원)</label>
-                <input type="number" id="cc_principal" placeholder="0" oninput="runCompound()">
+                <input type="text" inputmode="numeric" class="money-input" id="cc_principal" placeholder="0" oninput="runCompound()">
               </div>
               <div class="input-group">
                 <label>연 수익률 (%)</label>
@@ -590,7 +590,7 @@
               </div>
               <div class="input-group">
                 <label>현재 평균단가 (원)</label>
-                <input type="number" id="ad_avg" placeholder="0" oninput="runAvgDown()">
+                <input type="text" inputmode="numeric" class="money-input" id="ad_avg" placeholder="0" oninput="runAvgDown()">
               </div>
               <div class="input-group">
                 <label>현재 보유수량</label>
@@ -602,11 +602,11 @@
               </div>
               <div class="input-group">
                 <label>추가 매수 단가 (원)</label>
-                <input type="number" id="ad_add_price" placeholder="0" oninput="runAvgDown()">
+                <input type="text" inputmode="numeric" class="money-input" id="ad_add_price" placeholder="0" oninput="runAvgDown()">
               </div>
               <div class="input-group">
                 <label>현재 시세 (원, 선택)</label>
-                <input type="number" id="ad_mkt" placeholder="0" oninput="runAvgDown()">
+                <input type="text" inputmode="numeric" class="money-input" id="ad_mkt" placeholder="0" oninput="runAvgDown()">
               </div>
               <div class="input-group" style="align-self:end;">
                 <button class="btn btn-secondary btn-sm" onclick="useMarketPriceForAdd()">시세를 매수단가로</button>
@@ -821,14 +821,53 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-cc-contrib"></script>
-<script src="src/supabase.js?v=2026-04-15-cc-contrib"></script>
-<script src="src/quotes.js?v=2026-04-15-cc-contrib"></script>
-<script src="src/format.js?v=2026-04-15-cc-contrib"></script>
-<script src="src/calc.js?v=2026-04-15-cc-contrib"></script>
-<script src="src/ui.js?v=2026-04-15-cc-contrib"></script>
+<script src="src/config.js?v=2026-04-15-money-comma"></script>
+<script src="src/supabase.js?v=2026-04-15-money-comma"></script>
+<script src="src/quotes.js?v=2026-04-15-money-comma"></script>
+<script src="src/format.js?v=2026-04-15-money-comma"></script>
+<script src="src/calc.js?v=2026-04-15-money-comma"></script>
+<script src="src/ui.js?v=2026-04-15-money-comma"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+// ── Money input formatting ──
+// Money inputs 표시는 '1,234,567' 문자열, 내부 읽기/쓰기는 numVal/setMoney 사용.
+// HTML 에 class="money-input" 붙이거나, 동적 생성 후 attachMoneyInput(el) 호출.
+function numVal(el) {
+  if (!el) return 0;
+  const raw = String(el.value || '').replace(/[^\d-]/g, '');
+  if (!raw || raw === '-') return 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+function setMoney(el, n) {
+  if (!el) return;
+  const v = Number(n);
+  el.value = (!Number.isFinite(v) || v === 0) ? '' : v.toLocaleString();
+}
+function attachMoneyInput(el) {
+  if (!el || el.dataset.moneyAttached) return;
+  if (el.type === 'number') el.type = 'text';
+  el.setAttribute('inputmode', 'numeric');
+  el.dataset.moneyAttached = '1';
+  el.addEventListener('input', () => {
+    // 숫자 외 전부 제거 (comma 포함). 편집 중엔 raw 유지.
+    const cleaned = el.value.replace(/[^\d-]/g, '');
+    if (cleaned !== el.value) el.value = cleaned;
+  });
+  el.addEventListener('focus', () => {
+    // 편집 편하도록 comma 제거
+    el.value = el.value.replace(/,/g, '');
+  });
+  el.addEventListener('blur', () => {
+    // 포맷팅
+    const n = numVal(el);
+    el.value = n === 0 ? '' : n.toLocaleString();
+  });
+  // 초기 포맷팅
+  const n0 = numVal(el);
+  if (n0 !== 0) el.value = n0.toLocaleString();
+}
+
 // ── 상태 ──
 let GAS_URL = "";
 let SHEET_ID = "";
@@ -1000,7 +1039,7 @@ function appendContribRow(wrap, c) {
       <option value="month"${c.freq==='month'?'selected':''}>월</option>
       <option value="year" ${c.freq==='year' ?'selected':''}>연</option>
     </select>
-    <input type="number" class="contrib-amount" placeholder="금액 (원)" value="${c.amount||0}" style="width:160px;">
+    <input type="text" inputmode="numeric" class="contrib-amount" placeholder="금액 (원)" value="${c.amount||0}" style="width:160px;">
     <button type="button" class="btn btn-secondary btn-sm" onclick="this.parentNode.remove()" style="padding:4px 10px;">삭제</button>
   `;
   // Apply minimal form styles to inputs inside row
@@ -1013,6 +1052,8 @@ function appendContribRow(wrap, c) {
     el.style.fontSize = '12px';
     el.style.outline = 'none';
   });
+  // 금액 필드에 comma 포맷터 부착
+  attachMoneyInput(row.querySelector('.contrib-amount'));
   wrap.appendChild(row);
 }
 
@@ -1031,7 +1072,7 @@ function readContribRows() {
     const from = Number(r.querySelector('.contrib-from').value);
     const to   = Number(r.querySelector('.contrib-to').value);
     const freq = r.querySelector('.contrib-freq').value;
-    const amount = Number(r.querySelector('.contrib-amount').value) || 0;
+    const amount = numVal(r.querySelector('.contrib-amount'));
     out.push({ from, to, freq, amount });
   });
   return out;
@@ -1685,7 +1726,7 @@ function appendCcContribRow(wrap, c) {
       <option value="month"${c.freq==='month'?'selected':''}>월</option>
       <option value="year" ${c.freq==='year' ?'selected':''}>연</option>
     </select>
-    <input type="number" class="ccc-amount" placeholder="금액 (원)" value="${c.amount||0}" style="width:160px;">
+    <input type="text" inputmode="numeric" class="ccc-amount" placeholder="금액 (원)" value="${c.amount||0}" style="width:160px;">
     <button type="button" class="btn btn-secondary btn-sm" onclick="this.parentNode.remove(); runCompound();" style="padding:4px 10px;">삭제</button>
   `;
   row.querySelectorAll('input, select').forEach(el => {
@@ -1699,6 +1740,8 @@ function appendCcContribRow(wrap, c) {
     el.addEventListener('input', runCompound);
     el.addEventListener('change', runCompound);
   });
+  // 금액 필드 포맷터 부착 (attachMoneyInput은 input 리스너 추가 후에도 동작)
+  attachMoneyInput(row.querySelector('.ccc-amount'));
   wrap.appendChild(row);
 }
 
@@ -1717,7 +1760,7 @@ function readCcContribRows() {
     const from = Number(r.querySelector('.ccc-from').value);
     const to   = Number(r.querySelector('.ccc-to').value);
     const freq = r.querySelector('.ccc-freq').value;
-    const amount = Number(r.querySelector('.ccc-amount').value) || 0;
+    const amount = numVal(r.querySelector('.ccc-amount'));
     if (!amount || amount <= 0) return;
     if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) return;
     out.push({ from, to, freq, amount });
@@ -1734,7 +1777,7 @@ function renderCcContribRows(contribs) {
 }
 
 function runCompound() {
-  const principal = Number(document.getElementById('cc_principal').value) || 0;
+  const principal = numVal(document.getElementById('cc_principal'));
   const ratePct   = Number(document.getElementById('cc_rate').value);
   const years     = Number(document.getElementById('cc_years').value) || 0;
   const contribs  = readCcContribRows();
@@ -1798,7 +1841,7 @@ function prefillCompoundFromAccount() {
   const flows = computeCashFlows(allRows);
   const stocks = computeHoldings(allRows);
   const totalCost = Object.values(stocks).filter(s => s.holdQty > 0).reduce((a,s) => a + s.holdCost, 0);
-  document.getElementById('cc_principal').value = Math.round(totalCost);
+  setMoney(document.getElementById('cc_principal'), Math.round(totalCost));
 
   // 기간: 첫 입금일부터 오늘까지 (년 단위, 소수 → 반올림)
   const depDates = allRows.filter(r => r[1] === '입금').map(r => r[0]).filter(Boolean).sort();
@@ -1855,19 +1898,19 @@ function onAvgDownHoldingSelect() {
   const s = stocks[code];
   if (!s || s.holdQty <= 0) return;
   const avg = Math.round(s.holdCost / s.holdQty);
-  document.getElementById('ad_avg').value = avg;
+  setMoney(document.getElementById('ad_avg'), avg);
   document.getElementById('ad_qty').value = s.holdQty;
   const q = _avgDownQuoteCache && _avgDownQuoteCache[normalizeKrxCode(code)];
   if (q && q.price) {
-    document.getElementById('ad_mkt').value = q.price;
+    setMoney(document.getElementById('ad_mkt'), q.price);
   }
   runAvgDown();
 }
 
 function useMarketPriceForAdd() {
-  const mkt = document.getElementById('ad_mkt').value;
-  if (mkt) {
-    document.getElementById('ad_add_price').value = mkt;
+  const mkt = numVal(document.getElementById('ad_mkt'));
+  if (mkt > 0) {
+    setMoney(document.getElementById('ad_add_price'), mkt);
     runAvgDown();
   }
 }
@@ -1881,12 +1924,12 @@ function resetAvgDown() {
 }
 
 function runAvgDown() {
-  const avg     = Number(document.getElementById('ad_avg').value) || 0;
+  const avg     = numVal(document.getElementById('ad_avg'));
   const qty     = Number(document.getElementById('ad_qty').value) || 0;
   const addQty  = Number(document.getElementById('ad_add_qty').value) || 0;
-  const addPr   = Number(document.getElementById('ad_add_price').value) || 0;
-  const mktRaw  = document.getElementById('ad_mkt').value;
-  const mkt     = mktRaw ? Number(mktRaw) : null;
+  const addPr   = numVal(document.getElementById('ad_add_price'));
+  const mktAmt  = numVal(document.getElementById('ad_mkt'));
+  const mkt     = mktAmt > 0 ? mktAmt : null;
 
   const newAvgEl    = document.getElementById('ad_new_avg');
   const newAvgSub   = document.getElementById('ad_new_avg_sub');
@@ -1974,8 +2017,8 @@ function onTypeChange() {
 
 function calcAmount() {
   const qty = Number(document.getElementById('f_qty').value) || 0;
-  const price = Number(document.getElementById('f_price').value) || 0;
-  if (qty && price) document.getElementById('f_amount').value = qty * price;
+  const price = numVal(document.getElementById('f_price'));
+  if (qty && price) setMoney(document.getElementById('f_amount'), qty * price);
 }
 
 function resetForm() {
@@ -1989,35 +2032,31 @@ async function submitTransaction() {
   const raw    = document.getElementById('f_raw_type').value;
   const code   = document.getElementById('f_code').value;
   const name   = document.getElementById('f_name').value;
-  const qty    = document.getElementById('f_qty').value;
-  const price  = document.getElementById('f_price').value;
-  const amount = document.getElementById('f_amount').value;
-  const fee    = document.getElementById('f_fee').value;
+  const qtyStr = document.getElementById('f_qty').value;
+  const price  = numVal(document.getElementById('f_price'));
+  const amount = numVal(document.getElementById('f_amount'));
+  const fee    = numVal(document.getElementById('f_fee'));
+  const qty    = Number(qtyStr);
 
-  if (!date || !type || !amount) {
+  if (!date || !type || amount <= 0) {
     showToast('날짜, 구분, 거래금액은 필수입니다', 'error'); return;
   }
-  const amtNum = Number(amount);
-  if (!Number.isFinite(amtNum) || amtNum <= 0) {
+  if (!Number.isFinite(amount) || amount <= 0) {
     showToast('거래금액은 0보다 큰 숫자여야 합니다', 'error'); return;
   }
   const isTrade = (type === '매수' || type === '매도');
   if (isTrade) {
-    const qtyNum = Number(qty), priceNum = Number(price);
-    if (!Number.isFinite(qtyNum) || qtyNum <= 0) {
+    if (!Number.isFinite(qty) || qty <= 0) {
       showToast('매수/매도는 수량이 0보다 커야 합니다', 'error'); return;
     }
-    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+    if (!Number.isFinite(price) || price <= 0) {
       showToast('매수/매도는 단가가 0보다 커야 합니다', 'error'); return;
     }
-  }
-  if (fee && !Number.isFinite(Number(fee))) {
-    showToast('수수료는 숫자여야 합니다', 'error'); return;
   }
 
   // 계좌 확인
   const acctName = ACCOUNT_NAMES[currentAccountId] || currentAccountId;
-  if (!confirm(`[${acctName}]에 이 거래를 저장하시겠습니까?\n\n${date} · ${type} · ${Number(amount).toLocaleString()}원`)) return;
+  if (!confirm(`[${acctName}]에 이 거래를 저장하시겠습니까?\n\n${date} · ${type} · ${amount.toLocaleString()}원`)) return;
 
   try {
     await sbFetch('transactions', {
@@ -2026,10 +2065,10 @@ async function submitTransaction() {
         account_id: currentAccountId,
         trade_date: date, type, raw_type: raw,
         stock_code: code, stock_name: name,
-        quantity: qty ? Number(qty) : null,
-        price: price ? Number(price) : null,
-        amount: Number(amount),
-        fee: fee ? Number(fee) : null
+        quantity: Number.isFinite(qty) && qty > 0 ? qty : null,
+        price: price > 0 ? price : null,
+        amount: amount,
+        fee: fee > 0 ? fee : null
       })
     });
     showToast('저장 완료!', 'success');
@@ -2314,6 +2353,9 @@ onTypeChange();
 
 // 계산기 탭 적립 계획 초기 빈 행 1개
 renderCcContribRows([]);
+
+// 정적 money-input 필드에 천 단위 쉼표 포맷터 일괄 부착
+document.querySelectorAll('.money-input').forEach(attachMoneyInput);
 </script>
 </body>
 </html>

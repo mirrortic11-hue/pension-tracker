@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-label-gain">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-dc-step1">
 </head>
 <body>
 
@@ -799,12 +799,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-label-gain"></script>
-<script src="src/supabase.js?v=2026-04-15-label-gain"></script>
-<script src="src/quotes.js?v=2026-04-15-label-gain"></script>
-<script src="src/format.js?v=2026-04-15-label-gain"></script>
-<script src="src/calc.js?v=2026-04-15-label-gain"></script>
-<script src="src/ui.js?v=2026-04-15-label-gain"></script>
+<script src="src/config.js?v=2026-04-15-dc-step1"></script>
+<script src="src/supabase.js?v=2026-04-15-dc-step1"></script>
+<script src="src/quotes.js?v=2026-04-15-dc-step1"></script>
+<script src="src/format.js?v=2026-04-15-dc-step1"></script>
+<script src="src/calc.js?v=2026-04-15-dc-step1"></script>
+<script src="src/ui.js?v=2026-04-15-dc-step1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1843,6 +1843,81 @@ function handleFileUpload(e) {
   if (file) processExcel(file);
 }
 
+// ── 엑셀 파싱: 공용 헬퍼 ──
+// 날짜 포맷터: Date / 숫자(Excel serial) / 점구분("2026.04.02") 전부 YYYY-MM-DD로
+function fmtExcelDate(v) {
+  if (!v && v !== 0) return '';
+  if (v instanceof Date && !isNaN(v)) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, '0');
+    const d = String(v.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    const ms = Math.round(v * 86400) * 1000;
+    const d = new Date(Date.UTC(1899, 11, 30) + ms);
+    const y = d.getUTCFullYear();
+    const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const da = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}-${mo}-${da}`;
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return s;
+}
+
+// 포맷 자동 감지 — 헤더 첫 셀 내용으로 분기
+function detectFormat(raw) {
+  if (!raw || raw.length < 2) return null;
+  const h1 = raw[0] || [];
+  const h2 = raw[1] || [];
+  // ISA/Kairos 기존 미래에셋 포맷: row0[1]='거래종류', row1[2]='수량'
+  if (h1[1] === '거래종류' && h2[2] === '수량') return 'isa_kairos';
+  // DC 포맷들 (나중 단계에서 지원 예정)
+  if (h1[0] === '등록일자' && h1[2] === '매수매도') return 'dc_trades';
+  if (h1[0] === '거래일자' && h1[2] === '거래유형') return 'dc_dividends';
+  if (h1[0] === '납입일자' && h1[1] === '납입상태') return 'dc_deposits';
+  return null;
+}
+
+// ISA/Kairos 전용 파서 — 2행 pair 구조 (종목코드 영문 시작 'A' 제거)
+function parseIsaKairos(raw) {
+  const typeMap = {
+    '주식매수입고': '매수', '주식매도출고': '매도',
+    'ETF/상장클래스 분배금입금': '분배금입금',
+    '이체입금': '입금', '계좌대체입금': '입금',
+    '예탁금이용료입금': '예탁금이용료', '이체송금': '이체송금'
+  };
+  // 의도적 스킵: 현금 반대편 기록이거나 항상 0인 메타 항목.
+  const INTENTIONAL_SKIP = new Set(['주식매수출금', '주식매도입금', '배당세출금']);
+
+  const parsed = [];
+  const skipped = {};
+  const deduped = {};
+  let i = 2;
+  while (i < raw.length - 1) {
+    const r1 = raw[i], r2 = raw[i+1];
+    const txType = r1[1];
+    const 구분 = typeMap[txType];
+    if (구분) {
+      let code = r1[4] ? String(r1[4]).replace(/^A/, '') : '';
+      parsed.push([
+        fmtExcelDate(r1[0]), 구분, txType, code, r2[4] || '',
+        r2[2] || '', r2[3] || '', r1[5] || '', r1[7] || ''
+      ]);
+    } else if (txType) {
+      if (INTENTIONAL_SKIP.has(txType)) {
+        deduped[txType] = (deduped[txType] || 0) + 1;
+      } else {
+        skipped[txType] = (skipped[txType] || 0) + 1;
+      }
+    }
+    i += 2;
+  }
+  return { parsed, skipped, deduped };
+}
+
 function processExcel(file) {
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -1853,64 +1928,21 @@ function processExcel(file) {
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
 
-      // 날짜 포맷터: Date / 숫자(Excel serial) / 문자열 전부 YYYY-MM-DD로
-      function fmtDate(v) {
-        if (!v && v !== 0) return '';
-        if (v instanceof Date && !isNaN(v)) {
-          const y = v.getFullYear();
-          const m = String(v.getMonth() + 1).padStart(2, '0');
-          const d = String(v.getDate()).padStart(2, '0');
-          return `${y}-${m}-${d}`;
-        }
-        if (typeof v === 'number' && Number.isFinite(v)) {
-          // Excel serial (days since 1899-12-30)
-          const ms = Math.round(v * 86400) * 1000;
-          const d = new Date(Date.UTC(1899, 11, 30) + ms);
-          const y = d.getUTCFullYear();
-          const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
-          const da = String(d.getUTCDate()).padStart(2, '0');
-          return `${y}-${mo}-${da}`;
-        }
-        return String(v);
+      const format = detectFormat(raw);
+      if (!format) {
+        showToast('파일 형식을 인식할 수 없습니다. 지원: ISA/미래에셋 거래내역', 'error');
+        return;
       }
 
-      const typeMap = {
-        '주식매수입고': '매수', '주식매도출고': '매도',
-        'ETF/상장클래스 분배금입금': '분배금입금',
-        '이체입금': '입금', '계좌대체입금': '입금',
-        '예탁금이용료입금': '예탁금이용료', '이체송금': '이체송금'
-      };
-
-      // 의도적 스킵: 현금 반대편 기록이거나 항상 0인 메타 항목.
-      //  주식매수출금 = 매수의 현금쪽 (주식매수입고와 짝)
-      //  주식매도입금 = 매도의 현금쪽 (주식매도출고와 짝)
-      //  배당세출금   = 분배금 세금 메타 (ISA 비과세라 보통 0)
-      const INTENTIONAL_SKIP = new Set(['주식매수출금', '주식매도입금', '배당세출금']);
-
-      const parsed = [];
-      const skipped = {};
-      const deduped = {};
-      let i = 2;
-      while (i < raw.length - 1) {
-        const r1 = raw[i], r2 = raw[i+1];
-        const txType = r1[1];
-        const 구분 = typeMap[txType];
-        if (구분) {
-          let code = r1[4] ? String(r1[4]).replace(/^A/, '') : '';
-          parsed.push([
-            fmtDate(r1[0]), 구분, txType, code, r2[4] || '',
-            r2[2] || '', r2[3] || '', r1[5] || '', r1[7] || ''
-          ]);
-        } else if (txType) {
-          if (INTENTIONAL_SKIP.has(txType)) {
-            deduped[txType] = (deduped[txType] || 0) + 1;
-          } else {
-            skipped[txType] = (skipped[txType] || 0) + 1;
-          }
-        }
-        i += 2;
+      let result;
+      if (format === 'isa_kairos') {
+        result = parseIsaKairos(raw);
+      } else {
+        showToast(`'${format}' 형식은 아직 지원되지 않습니다. 조만간 추가됩니다.`, 'error');
+        return;
       }
 
+      const { parsed, skipped, deduped } = result;
       const dedupedCnt = Object.values(deduped).reduce((a,b)=>a+b,0);
       const skippedCnt = Object.values(skipped).reduce((a,b)=>a+b,0);
       const dedupedNote = dedupedCnt > 0
@@ -1925,7 +1957,7 @@ function processExcel(file) {
       const destName = ACCOUNT_NAMES[currentAccountId] || currentAccountId;
       resultDiv.innerHTML = `
         <div style="background:rgba(63,185,80,0.1);border:1px solid var(--green);border-radius:6px;padding:14px;">
-          <div style="color:var(--green);font-weight:600;margin-bottom:8px;">✓ 파싱 완료: ${parsed.length}건</div>
+          <div style="color:var(--green);font-weight:600;margin-bottom:8px;">✓ 파싱 완료: ${parsed.length}건 <span style="color:var(--text2);font-weight:400;">(${format})</span></div>
           <div style="font-size:12px;margin-bottom:8px;">
             저장 대상: <span style="color:var(--green);font-weight:600;">${destName}</span>
             <span style="color:var(--text2);"> · 좌측에서 다른 계좌로 전환 후 업로드하면 해당 계좌로 저장됩니다</span>

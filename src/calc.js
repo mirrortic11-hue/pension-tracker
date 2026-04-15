@@ -105,26 +105,39 @@ function computeCashFlows(rows) {
 }
 
 /**
- * Compound interest with optional monthly contributions.
+ * Compound interest with flexible contribution schedules.
+ *
  * Inputs:
- *   principal   — initial lump sum
- *   annualRate  — e.g. 0.07 for 7%
- *   years       — integer years (>= 0). Ignored if `months` provided.
- *   months      — optional explicit period length in months (>= 0).
- *                 Takes precedence over years. Enables sub-year periods.
- *   monthly     — optional fixed monthly contribution (default 0)
+ *   principal     — initial lump sum
+ *   annualRate    — e.g. 0.07 for 7%
+ *   years         — integer years (ignored if `months` provided)
+ *   months        — explicit period length in months (preferred)
+ *   monthly       — [legacy] fixed monthly contribution; shorthand for
+ *                   a single contributions segment covering the whole period
+ *   contributions — [new] array of segments, each:
+ *                     { from: startYearInclusive,
+ *                       to:   endYearInclusive,
+ *                       freq: 'day' | 'month' | 'year',
+ *                       amount: krw }
+ *                   Segments must not overlap (enforced upstream).
+ *   startYear     — calendar year of month index 0 (used when contributions
+ *                   reference calendar years). Default 0.
+ *   startMonth    — 0-11 calendar month of index 0 (default 0). Used so that
+ *                   schedule entries align to December calendar-year ends.
+ *
+ * Engine always compounds monthly. The schedule emits one entry per December
+ * calendar-year end (or the final partial year if the period ends mid-year).
+ * Each schedule entry exposes `year` (1-indexed relative) AND `calYear`
+ * (absolute calendar year = startYear + floor((startMonth + monthIdx) / 12)).
+ *
  * Output: {
  *   finalValue, totalContrib, totalInterest,
- *   schedule: [{ year, startBalance, contrib, interest, endBalance }]
+ *   schedule: [{ year, calYear, startBalance, contrib, interest, endBalance }]
  * }
- * The engine always compounds monthly. The schedule emits one entry per
- * 12-month boundary; if the period does not divide evenly, the final
- * entry represents the remaining partial year.
  */
-function computeCompound({ principal, annualRate, years, months, monthly = 0 }) {
+function computeCompound({ principal, annualRate, years, months, monthly, contributions, startYear, startMonth }) {
   const P = Number(principal) || 0;
   const r = Number(annualRate) || 0;
-  const m = Number(monthly) || 0;
   let totalMonths;
   if (Number.isFinite(Number(months))) {
     totalMonths = Math.max(0, Math.floor(Number(months)));
@@ -132,6 +145,38 @@ function computeCompound({ principal, annualRate, years, months, monthly = 0 }) 
     totalMonths = Math.max(0, Math.floor(Number(years) || 0)) * 12;
   }
   const periodRate = r / 12;
+
+  // Build effective segments. Legacy `monthly` param collapses to a single
+  // all-years segment. An empty array means zero contributions.
+  let segs;
+  if (Array.isArray(contributions) && contributions.length > 0) {
+    segs = contributions.map(c => ({
+      from: Number(c.from) || 0,
+      to:   Number(c.to)   || 0,
+      freq: String(c.freq || 'month'),
+      amount: Number(c.amount) || 0,
+    }));
+  } else if (Number.isFinite(Number(monthly)) && Number(monthly) > 0) {
+    segs = [{ from: -Infinity, to: Infinity, freq: 'month', amount: Number(monthly) }];
+  } else {
+    segs = [];
+  }
+
+  // Given a calendar year, sum the monthly-equivalent contribution from all
+  // active segments. Day/year frequencies are normalised to month.
+  function monthlyForYear(y) {
+    let total = 0;
+    for (const s of segs) {
+      if (y < s.from || y > s.to) continue;
+      if (s.freq === 'month')     total += s.amount;
+      else if (s.freq === 'year') total += s.amount / 12;
+      else if (s.freq === 'day')  total += s.amount * 30.4375;
+    }
+    return total;
+  }
+
+  const sY = Number.isFinite(Number(startYear)) ? Number(startYear) : 0;
+  const sM = Number.isFinite(Number(startMonth)) ? Math.max(0, Math.min(11, Math.floor(Number(startMonth)))) : 0;
 
   let balance = P;
   const schedule = [];
@@ -142,21 +187,29 @@ function computeCompound({ principal, annualRate, years, months, monthly = 0 }) 
   let yearContrib = 0;
   let yearInterest = 0;
 
-  for (let i = 1; i <= totalMonths; i++) {
+  for (let i = 0; i < totalMonths; i++) {
+    const absMonth = sM + i;          // total months since sY January
+    const calYear  = sY + Math.floor(absMonth / 12);
+    const calMonth = ((absMonth % 12) + 12) % 12;
+    const m = segs.length ? monthlyForYear(calYear) : 0;
+
     const interest = balance * periodRate;
     balance += interest;
     yearInterest += interest;
     cumInterest += interest;
+
     if (m > 0) {
       balance += m;
       yearContrib += m;
       cumContrib += m;
     }
-    const isYearEnd = (i % 12 === 0);
-    const isLast = (i === totalMonths);
+
+    const isYearEnd = (calMonth === 11);      // December
+    const isLast = (i === totalMonths - 1);
     if (isYearEnd || isLast) {
       schedule.push({
         year: schedule.length + 1,
+        calYear,
         startBalance: Math.round(yearStartBalance),
         contrib: Math.round(yearContrib),
         interest: Math.round(yearInterest),

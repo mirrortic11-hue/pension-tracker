@@ -8,8 +8,15 @@
 // No DOM access. No app state. Safe to edit in isolation.
 
 function normalizeKrxCode(code) {
-  const d = String(code || '').replace(/\D/g, '');
-  if (!d) return '';
+  const s = String(code || '').trim().toUpperCase();
+  if (!s) return '';
+  // KRX 2024+ ETF 코드는 영문이 섞일 수 있음 (예: 0131V0, 0023A0).
+  // 영문이 하나라도 있으면 영숫자 유지(비영숫자만 제거), 순수 숫자면 기존 경로.
+  if (/[A-Z]/.test(s)) {
+    const alnum = s.replace(/[^0-9A-Z]/g, '');
+    return alnum.padStart(6, '0').slice(-6);
+  }
+  const d = s.replace(/\D/g, '');
   return d.padStart(6, '0').slice(-6);
 }
 

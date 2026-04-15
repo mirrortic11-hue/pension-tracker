@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-money-comma">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-lazy-switch">
 </head>
 <body>
 
@@ -821,12 +821,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-money-comma"></script>
-<script src="src/supabase.js?v=2026-04-15-money-comma"></script>
-<script src="src/quotes.js?v=2026-04-15-money-comma"></script>
-<script src="src/format.js?v=2026-04-15-money-comma"></script>
-<script src="src/calc.js?v=2026-04-15-money-comma"></script>
-<script src="src/ui.js?v=2026-04-15-money-comma"></script>
+<script src="src/config.js?v=2026-04-15-lazy-switch"></script>
+<script src="src/supabase.js?v=2026-04-15-lazy-switch"></script>
+<script src="src/quotes.js?v=2026-04-15-lazy-switch"></script>
+<script src="src/format.js?v=2026-04-15-lazy-switch"></script>
+<script src="src/calc.js?v=2026-04-15-lazy-switch"></script>
+<script src="src/ui.js?v=2026-04-15-lazy-switch"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── Money input formatting ──
@@ -873,7 +873,7 @@ let GAS_URL = "";
 let SHEET_ID = "";
 let allRows = [];
 let filteredRows = [];
-let _loadAllDataPromise = null;
+let _loadAllDataToken = 0;
 let txShowAll = false;
 
 // 활성 계좌 (런타임 상태). config.js의 ACCOUNT_ID는 기본값(pension_1)으로만 사용.
@@ -953,17 +953,20 @@ function switchAccount(id) {
   if (submenu && submenu.parentNode !== newGroup) {
     newGroup.appendChild(submenu);
   }
-  // 새 그룹은 펼친 상태로
   newGroup.classList.remove('collapsed');
 
-  // 데이터 리셋 + 새 계좌 fetch
+  // 데이터 리셋 — 이전 계좌 캐시 제거. fetch는 submenu 재라우팅에서 일어남.
   allRows = [];
   const tbody = document.getElementById('txBody');
   if (tbody) tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>';
-  loadAllData();
 
   // 복리 예상 설정 폼 새 계좌 기준으로 갱신
   _restoreProjectionForm();
+
+  // 현재 활성 서브메뉴가 가리키는 경로로 re-route → 해당 페이지 로더가 데이터 fetch
+  const activeSub = (submenu || newGroup).querySelector('.nav-sub.active');
+  const route = activeSub?.getAttribute('data-route') || 'transactions';
+  showPage(route);
 
   showToast(ACCOUNT_NAMES[id] + '(으)로 전환', 'info');
 }
@@ -1139,30 +1142,39 @@ function updateConnectionStatus(ok) {
 }
 
 // ── 전체 데이터 로드 ──
+// 계좌 전환과 중첩되는 fetch race를 방지하기 위해 token + myAccount 캡처 패턴을 사용.
+// 동시에 여러 번 호출되면 각 호출이 독립 fetch를 시작하되, 완료 시점에 가장 최근
+// 토큰만 결과를 반영한다. 이전 계좌 fetch 완료는 조용히 버려진다.
 async function loadAllData() {
-  if (_loadAllDataPromise) return _loadAllDataPromise;
-  _loadAllDataPromise = (async () => {
-    try {
-      document.getElementById('refreshIcon').textContent = '⏳';
-      const data = await sbFetchAll(`transactions?account_id=eq.${currentAccountId}&order=trade_date.asc`);
-      updateConnectionStatus(true);
-      allRows = data.map(r => [
-        r.trade_date, r.type, r.raw_type, r.stock_code,
-        r.stock_name, r.quantity, r.price, r.amount, r.fee, r.id
-      ]);
-      renderTable(allRows);
-      updateSummary(allRows);
-      document.getElementById('lastUpdated').textContent = '마지막 업데이트: ' + new Date().toLocaleTimeString('ko-KR');
-      showToast('데이터 로드 완료 (' + allRows.length + '건)', 'success');
-    } catch(e) {
-      updateConnectionStatus(false);
-      showToast('연결 실패: ' + e.message, 'error');
-    } finally {
-      document.getElementById('refreshIcon').textContent = '↻';
-      _loadAllDataPromise = null;
-    }
-  })();
-  return _loadAllDataPromise;
+  const myToken = ++_loadAllDataToken;
+  const myAccount = currentAccountId;
+  const refreshIcon = document.getElementById('refreshIcon');
+  if (refreshIcon) refreshIcon.textContent = '⏳';
+  try {
+    const data = await sbFetchAll(`transactions?account_id=eq.${myAccount}&order=trade_date.asc`);
+    // Stale check: user switched accounts (or called loadAllData) again while we were fetching
+    if (myToken !== _loadAllDataToken) return;
+    updateConnectionStatus(true);
+    allRows = data.map(r => [
+      r.trade_date, r.type, r.raw_type, r.stock_code,
+      r.stock_name, r.quantity, r.price, r.amount, r.fee, r.id
+    ]);
+    renderTable(allRows);
+    updateSummary(allRows);
+    document.getElementById('lastUpdated').textContent = '마지막 업데이트: ' + new Date().toLocaleTimeString('ko-KR');
+    showToast(`${ACCOUNT_NAMES[myAccount] || myAccount} 데이터 로드 완료 (${allRows.length}건)`, 'success');
+    // 현재 보고 있는 탭이 tx가 아니면 해당 로더도 즉시 갱신
+    const pageName = document.querySelector('.page.active')?.id?.replace('page-', '');
+    if (pageName === 'portfolio'  && typeof loadPortfolio === 'function') loadPortfolio();
+    else if (pageName === 'dividend'  && typeof loadDividend  === 'function') loadDividend();
+    else if (pageName === 'deposit'   && typeof loadDeposit   === 'function') loadDeposit();
+  } catch(e) {
+    if (myToken !== _loadAllDataToken) return;
+    updateConnectionStatus(false);
+    showToast('연결 실패: ' + e.message, 'error');
+  } finally {
+    if (myToken === _loadAllDataToken && refreshIcon) refreshIcon.textContent = '↻';
+  }
 }
 
 function loadFromSheet() { loadAllData(); }

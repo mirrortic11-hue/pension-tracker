@@ -56,6 +56,10 @@ function showPage(name) {
   document.querySelectorAll('.nav-item[data-route="' + name + '"]').forEach(n => {
     n.classList.add('active');
   });
+  if (name === 'transactions' && typeof loadAllData === 'function'
+      && (typeof allRows === 'undefined' || !allRows.length)) {
+    loadAllData();
+  }
   if (name === 'portfolio') loadPortfolio();
   if (name === 'dividend')  loadDividend();
   if (name === 'deposit')   loadDeposit();

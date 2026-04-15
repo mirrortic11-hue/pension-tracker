@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-submenu-split">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-loading-clear">
 </head>
 <body>
 
@@ -848,12 +848,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-submenu-split"></script>
-<script src="src/supabase.js?v=2026-04-15-submenu-split"></script>
-<script src="src/quotes.js?v=2026-04-15-submenu-split"></script>
-<script src="src/format.js?v=2026-04-15-submenu-split"></script>
-<script src="src/calc.js?v=2026-04-15-submenu-split"></script>
-<script src="src/ui.js?v=2026-04-15-submenu-split"></script>
+<script src="src/config.js?v=2026-04-15-loading-clear"></script>
+<script src="src/supabase.js?v=2026-04-15-loading-clear"></script>
+<script src="src/quotes.js?v=2026-04-15-loading-clear"></script>
+<script src="src/format.js?v=2026-04-15-loading-clear"></script>
+<script src="src/calc.js?v=2026-04-15-loading-clear"></script>
+<script src="src/ui.js?v=2026-04-15-loading-clear"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── Money input formatting ──
@@ -975,6 +975,72 @@ function selectSubMenu(accountId, route) {
   }
 }
 
+// 계좌 전환 시 모든 계좌별 화면 요소를 '로딩 중' 플레이스홀더로 일괄 초기화.
+// 이전 계좌 숫자가 그대로 남는 시각적 혼란 방지.
+function clearAccountViews() {
+  const spinner = '<span class="spinner"></span>';
+  const dash = '—';
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const setHtml = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
+  const resetCls = (id) => { const el = document.getElementById(id); if (el) el.className = 'value'; };
+
+  // 거래내역 6 요약 카드
+  setHtml('totalCost', spinner);
+  setHtml('totalEval', spinner);
+  setHtml('totalPnl',  spinner);
+  setHtml('totalReturn', spinner);
+  setHtml('totalDiv',  spinner);
+  setHtml('totalDivRate', spinner);
+  resetCls('totalEval'); resetCls('totalPnl'); resetCls('totalReturn');
+  setText('divCount', dash);
+  setText('totalPnlSub', '평가금액 − 매입금액');
+  setText('totalReturnSub', '평가손익 / 매입금액');
+  setText('evalChange', '조회 중...');
+
+  // 복리 예상 카드
+  setText('projTargetYear', dash);
+  setText('projYears', dash);
+  setText('projFinal', dash);
+  setText('projInterest', dash);
+  setText('projBase', '현재 계좌 총액 기준');
+  setText('projRateInfo', dash);
+  setText('projNote', '조회 중...');
+  setText('projTitle', '복리 예상');
+  setHtml('projChart', '');
+
+  // 거래내역 테이블
+  const txBody = document.getElementById('txBody');
+  if (txBody) txBody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
+  setText('rowCount', '로딩 중...');
+  setText('lastUpdated', '');
+
+  // 포트폴리오 테이블 + 현금예수금
+  const pfBody = document.getElementById('portfolioBody');
+  if (pfBody) pfBody.innerHTML = '<tr><td colspan="14"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
+  setHtml('pfCash', spinner);
+
+  // 분배금 페이지
+  const divBody = document.getElementById('divBody');
+  if (divBody) divBody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
+  setHtml('divTotal2', spinner);
+  setText('divCount2', dash);
+  setHtml('divRate2', spinner);
+
+  // 입금내역 페이지
+  const depBody = document.getElementById('depositBody');
+  if (depBody) depBody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
+  setHtml('depTotal', spinner);
+  setText('depCount', dash);
+  setHtml('depTransfer', spinner);
+  setText('depTransferCnt', dash);
+  setHtml('depInternal', spinner);
+  setText('depInternalCnt', dash);
+
+  // 상단 refresh 아이콘
+  const refreshIcon = document.getElementById('refreshIcon');
+  if (refreshIcon) refreshIcon.textContent = '⏳';
+}
+
 function switchAccount(id, route) {
   if (!ACCOUNT_NAMES[id]) return;
   currentAccountId = id;
@@ -989,15 +1055,16 @@ function switchAccount(id, route) {
   newGroup.classList.remove('collapsed');
   try { localStorage.setItem('account-collapsed:' + id, '0'); } catch (e) {}
 
-  // 데이터 리셋 — 이전 계좌 캐시 제거. fetch는 showPage 경로에서 일어남.
+  // 데이터 리셋 — 이전 계좌 캐시 제거
   allRows = [];
-  const tbody = document.getElementById('txBody');
-  if (tbody) tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>';
+
+  // 모든 계좌 종속 화면 요소를 즉시 로딩 플레이스홀더로 교체
+  clearAccountViews();
 
   // 복리 예상 설정 폼 새 계좌 기준으로 갱신
   _restoreProjectionForm();
 
-  // 요청된 route로 네비게이션 (기본 거래내역)
+  // 요청된 route로 네비게이션 (기본 거래내역). 해당 페이지 로더가 fetch 시작.
   showPage(route || 'transactions');
 
   showToast(ACCOUNT_NAMES[id] + '(으)로 전환', 'info');

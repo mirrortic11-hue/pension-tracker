@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-multi-step3">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-multi-step5">
 </head>
 <body>
 
@@ -642,7 +642,7 @@
       <!-- 복리 예상 설정 -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">복리 예상 설정 (개인연금 1)</span>
+          <span class="card-title" id="projSettingsTitle">복리 예상 설정 (개인연금 1)</span>
           <span style="font-size:11px;color:var(--text2);">거래내역 하단에 목표 연도까지의 복리 예상이 표시됩니다</span>
         </div>
         <div class="card-body">
@@ -785,12 +785,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-multi-step3"></script>
-<script src="src/supabase.js?v=2026-04-15-multi-step3"></script>
-<script src="src/quotes.js?v=2026-04-15-multi-step3"></script>
-<script src="src/format.js?v=2026-04-15-multi-step3"></script>
-<script src="src/calc.js?v=2026-04-15-multi-step3"></script>
-<script src="src/ui.js?v=2026-04-15-multi-step3"></script>
+<script src="src/config.js?v=2026-04-15-multi-step5"></script>
+<script src="src/supabase.js?v=2026-04-15-multi-step5"></script>
+<script src="src/quotes.js?v=2026-04-15-multi-step5"></script>
+<script src="src/format.js?v=2026-04-15-multi-step5"></script>
+<script src="src/calc.js?v=2026-04-15-multi-step5"></script>
+<script src="src/ui.js?v=2026-04-15-multi-step5"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -823,15 +823,17 @@ SHEET_ID = localStorage.getItem('sheetId') || '';
 document.getElementById('gasUrl').value = GAS_URL;
 document.getElementById('sheetId').value = SHEET_ID;
 
-// 복리 예상 설정 폼 복원
+// 복리 예상 설정 폼 복원 + 카드 타이틀 현재 계좌명으로 갱신
 function _restoreProjectionForm() {
   const s = getProjectionSettings();
   const yEl = document.getElementById('proj_year');
   const rEl = document.getElementById('proj_rate');
   const mEl = document.getElementById('proj_monthly');
+  const tEl = document.getElementById('projSettingsTitle');
   if (yEl) yEl.value = s.targetYear;
   if (rEl) rEl.value = s.rate;
   if (mEl) mEl.value = s.monthly || '';
+  if (tEl) tEl.textContent = '복리 예상 설정 (' + (ACCOUNT_NAMES[currentAccountId] || currentAccountId) + ')';
 }
 _restoreProjectionForm();
 
@@ -1785,6 +1787,10 @@ async function submitTransaction() {
     showToast('수수료는 숫자여야 합니다', 'error'); return;
   }
 
+  // 계좌 확인
+  const acctName = ACCOUNT_NAMES[currentAccountId] || currentAccountId;
+  if (!confirm(`[${acctName}]에 이 거래를 저장하시겠습니까?\n\n${date} · ${type} · ${Number(amount).toLocaleString()}원`)) return;
+
   try {
     await sbFetch('transactions', {
       method: 'POST',
@@ -1861,13 +1867,18 @@ function processExcel(file) {
 
       const resultDiv = document.getElementById('uploadResult');
       resultDiv.style.display = 'block';
+      const destName = ACCOUNT_NAMES[currentAccountId] || currentAccountId;
       resultDiv.innerHTML = `
         <div style="background:rgba(63,185,80,0.1);border:1px solid var(--green);border-radius:6px;padding:14px;">
           <div style="color:var(--green);font-weight:600;margin-bottom:8px;">✓ 파싱 완료: ${parsed.length}건</div>
+          <div style="font-size:12px;margin-bottom:8px;">
+            저장 대상: <span style="color:var(--green);font-weight:600;">${destName}</span>
+            <span style="color:var(--text2);"> · 좌측에서 다른 계좌로 전환 후 업로드하면 해당 계좌로 저장됩니다</span>
+          </div>
           ${skippedNote}
-          <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">구글 스프레드시트에 추가하려면 아래 버튼을 클릭하세요</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">아래 버튼을 클릭하면 확인 창이 한 번 더 뜹니다</div>
           <button class="btn btn-green btn-sm" onclick="uploadToSheet(${JSON.stringify(parsed).replace(/"/g,'&quot;')})">
-            구글 시트에 ${parsed.length}건 추가
+            ${destName}에 ${parsed.length}건 추가
           </button>
         </div>`;
     } catch(err) {
@@ -1878,6 +1889,11 @@ function processExcel(file) {
 }
 
 async function uploadToSheet(rows) {
+  const acctName = ACCOUNT_NAMES[currentAccountId] || currentAccountId;
+  if (!confirm(`[${acctName}]에 ${rows.length}건을 저장합니다.\n\n계좌가 맞습니까? 취소하려면 취소를 누르고 좌측 사이드바에서 계좌를 먼저 전환하세요.`)) {
+    showToast('업로드 취소됨', 'info');
+    return;
+  }
   try {
     const records = rows.map(r => ({
       account_id: currentAccountId,
@@ -1889,7 +1905,7 @@ async function uploadToSheet(rows) {
       fee: r[8] ? Number(r[8]) : null
     }));
     await sbFetch('transactions', { method: 'POST', body: JSON.stringify(records) });
-    showToast(records.length + '건 추가 완료!', 'success');
+    showToast(`[${acctName}]에 ${records.length}건 추가 완료!`, 'success');
     await loadAllData();
   } catch(e) {
     showToast('업로드 실패: ' + e.message, 'error');

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-grid-3cols">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-multi-step1">
 </head>
 <body>
 
@@ -763,12 +763,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-grid-3cols"></script>
-<script src="src/supabase.js?v=2026-04-15-grid-3cols"></script>
-<script src="src/quotes.js?v=2026-04-15-grid-3cols"></script>
-<script src="src/format.js?v=2026-04-15-grid-3cols"></script>
-<script src="src/calc.js?v=2026-04-15-grid-3cols"></script>
-<script src="src/ui.js?v=2026-04-15-grid-3cols"></script>
+<script src="src/config.js?v=2026-04-15-multi-step1"></script>
+<script src="src/supabase.js?v=2026-04-15-multi-step1"></script>
+<script src="src/quotes.js?v=2026-04-15-multi-step1"></script>
+<script src="src/format.js?v=2026-04-15-multi-step1"></script>
+<script src="src/calc.js?v=2026-04-15-multi-step1"></script>
+<script src="src/ui.js?v=2026-04-15-multi-step1"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -778,6 +778,14 @@ let allRows = [];
 let filteredRows = [];
 let _loadAllDataPromise = null;
 let txShowAll = false;
+
+// 활성 계좌 (런타임 상태). config.js의 ACCOUNT_ID는 기본값(pension_1)으로만 사용.
+// Step 1에서는 변수만 도입 — 아직 어디서도 참조하지 않음.
+let currentAccountId = ACCOUNT_ID;
+try {
+  const saved = localStorage.getItem('currentAccountId');
+  if (saved && typeof saved === 'string') currentAccountId = saved;
+} catch (e) {}
 
 // 설정 복원 (거래 데이터는 Supabase; GAS URL은 레거시/선택)
 GAS_URL = localStorage.getItem('gasUrl') || '';

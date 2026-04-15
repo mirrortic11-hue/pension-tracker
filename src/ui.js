@@ -9,6 +9,13 @@ function toggleSidebar() {
   try { localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
 }
 
+function toggleAccount(id) {
+  const g = document.getElementById('account-' + id);
+  if (!g) return;
+  const collapsed = g.classList.toggle('collapsed');
+  try { localStorage.setItem('account-collapsed:' + id, collapsed ? '1' : '0'); } catch (e) {}
+}
+
 (function initSidebarState() {
   try {
     if (localStorage.getItem('sidebarCollapsed') === '1') {
@@ -16,6 +23,20 @@ function toggleSidebar() {
         document.querySelector('.layout')?.classList.add('sidebar-collapsed');
       });
     }
+  } catch (e) {}
+})();
+
+(function initAccountGroupState() {
+  try {
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.account-group').forEach(g => {
+        const id = g.id.replace(/^account-/, '');
+        if (!id) return;
+        if (localStorage.getItem('account-collapsed:' + id) === '1') {
+          g.classList.add('collapsed');
+        }
+      });
+    });
   } catch (e) {}
 })();
 

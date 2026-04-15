@@ -188,6 +188,24 @@ aside {
 }
 .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
 
+/* 계좌 그룹 (접이식) */
+.account-group { }
+.account-chevron {
+  width: 11px;
+  height: 11px;
+  margin-left: 4px;
+  color: var(--text2);
+  opacity: 0.7;
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+.account-group.collapsed .account-chevron {
+  transform: rotate(-90deg);
+}
+.account-group.collapsed .account-submenu {
+  display: none;
+}
+
 /* 계좌 하위 메뉴 (nested nav-item) */
 .nav-item.nav-sub {
   padding: 6px 20px 6px 30px;

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-csv-accept">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-xlsx-only">
 </head>
 <body>
 
@@ -256,6 +256,13 @@
           <span style="font-size:11px;color:var(--text2);">증권사 거래내역 엑셀을 업로드하면 자동 파싱됩니다</span>
         </div>
         <div class="card-body">
+          <!-- 주의 -->
+          <div style="margin-bottom:14px;padding:12px 14px;background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.55);border-radius:6px;color:#f85149;font-size:12px;line-height:1.7;">
+            ⚠ <strong>주의 — 반드시 .xlsx로 변환 후 업로드</strong><br>
+            국내 HTS(카이로스·키움·대신·NH 등)에서 받은 CSV는 <strong>CP949 인코딩</strong>이라 Mac에서 바로 업로드하면 한글이 깨지고 컬럼이 어긋납니다.<br>
+            <strong>엑셀(또는 Numbers)에서 열고 → 다른 이름으로 저장 → .xlsx 형식</strong>으로 변환한 뒤에만 업로드하세요.
+          </div>
+
           <div class="upload-zone" id="uploadZone"
             ondragover="event.preventDefault();this.classList.add('drag-over')"
             ondragleave="this.classList.remove('drag-over')"
@@ -264,18 +271,18 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75z"/>
             </svg>
-            <p>엑셀/CSV 파일을 드래그하거나 클릭해서 업로드</p>
-            <small>.xlsx · .xls · .csv 지원 (국내 증권사 한글 CSV는 CP949 자동 인식)</small>
+            <p>엑셀 파일을 드래그하거나 클릭해서 업로드</p>
+            <small>.xlsx 형식만 지원 (위 주의사항 필독)</small>
           </div>
-          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileUpload(event)">
+          <input type="file" id="fileInput" accept=".xlsx" style="display:none" onchange="handleFileUpload(event)">
 
           <div id="uploadResult" style="display:none;margin-top:16px;"></div>
 
           <div class="divider"></div>
           <div class="help-text">
-            📌 업로드 방법: 증권사 앱/HTS → 거래내역 → 엑셀 다운로드 → 여기에 업로드<br>
-            📌 파싱 후 구글 스프레드시트에 자동으로 추가됩니다<br>
-            📌 중복 거래일자는 자동으로 건너뜁니다
+            📌 업로드 방법: 증권사 HTS → 거래내역 다운로드(보통 CSV) → Excel/Numbers에서 열기 → .xlsx로 저장 → 여기에 업로드<br>
+            📌 파싱 후 Supabase에 자동으로 추가됩니다<br>
+            📌 같은 파일을 두 번 업로드하면 중복이 생기니 조심하세요
           </div>
         </div>
       </div>
@@ -785,12 +792,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-csv-accept"></script>
-<script src="src/supabase.js?v=2026-04-15-csv-accept"></script>
-<script src="src/quotes.js?v=2026-04-15-csv-accept"></script>
-<script src="src/format.js?v=2026-04-15-csv-accept"></script>
-<script src="src/calc.js?v=2026-04-15-csv-accept"></script>
-<script src="src/ui.js?v=2026-04-15-csv-accept"></script>
+<script src="src/config.js?v=2026-04-15-xlsx-only"></script>
+<script src="src/supabase.js?v=2026-04-15-xlsx-only"></script>
+<script src="src/quotes.js?v=2026-04-15-xlsx-only"></script>
+<script src="src/format.js?v=2026-04-15-xlsx-only"></script>
+<script src="src/calc.js?v=2026-04-15-xlsx-only"></script>
+<script src="src/ui.js?v=2026-04-15-xlsx-only"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──

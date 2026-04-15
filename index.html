@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-dc-step1">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-dc-step2">
 </head>
 <body>
 
@@ -799,12 +799,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-dc-step1"></script>
-<script src="src/supabase.js?v=2026-04-15-dc-step1"></script>
-<script src="src/quotes.js?v=2026-04-15-dc-step1"></script>
-<script src="src/format.js?v=2026-04-15-dc-step1"></script>
-<script src="src/calc.js?v=2026-04-15-dc-step1"></script>
-<script src="src/ui.js?v=2026-04-15-dc-step1"></script>
+<script src="src/config.js?v=2026-04-15-dc-step2"></script>
+<script src="src/supabase.js?v=2026-04-15-dc-step2"></script>
+<script src="src/quotes.js?v=2026-04-15-dc-step2"></script>
+<script src="src/format.js?v=2026-04-15-dc-step2"></script>
+<script src="src/calc.js?v=2026-04-15-dc-step2"></script>
+<script src="src/ui.js?v=2026-04-15-dc-step2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1881,6 +1881,81 @@ function detectFormat(raw) {
   return null;
 }
 
+// DC/IRP 현재 보유 종목 → 종목코드 수동 매핑
+// 과거 매도된 종목(현재 보유 0)은 코드 없이도 computeHoldings가 0으로 상쇄하니 무해함
+const DC_STOCK_CODE_MAP = {
+  'TIGER 미국나스닥100':                  '133690',
+  'TIGER 미국S&P500':                    '360750',
+  'TIGER 미국배당다우존스타켓커버드콜2호':  '458760',
+  'KODEX 테슬라커버드콜채권혼합액티브':     '475080',
+};
+
+// DC 매매내역 파서 — 2행 pair, 결제일자 우선, 교체매매 raw_type, 수수료 0
+function parseDcTrades(raw) {
+  const parsed = [];
+  let i = 2;
+  while (i < raw.length - 1) {
+    const top = raw[i], bot = raw[i+1];
+    const status = String(top[6] || '');
+    if (status !== '매매완료') { i += 2; continue; }
+    const sideRaw = String(top[2] || '');
+    let type;
+    if (sideRaw === '매수-') type = '매수';
+    else if (sideRaw === '매도-') type = '매도';
+    else { i += 2; continue; }
+    const name = String(top[3] || '');
+    const rawType = String(bot[2] || '교체매매');
+    const date = fmtExcelDate(bot[1] || top[0]);  // 결제일자 우선
+    const qty = Number(bot[4] || top[4] || 0) || 0;
+    const price = Number(bot[5] || 0) || 0;
+    const amount = Number(top[5] || 0) || 0;
+    const code = DC_STOCK_CODE_MAP[name] || '';
+    parsed.push([date, type, rawType, code, name, qty, price, amount, 0]);
+    i += 2;
+  }
+  return { parsed, skipped: {}, deduped: {} };
+}
+
+// DC 배당/분배금 파서 — 1행 per record, '현금배당'만 수집
+function parseDcDividends(raw) {
+  const parsed = [];
+  const skipped = {};
+  for (let i = 1; i < raw.length; i++) {
+    const r = raw[i];
+    if (!r || !r[0]) continue;
+    const txType = String(r[2] || '');
+    if (txType !== '현금배당') {
+      if (txType) skipped[txType] = (skipped[txType] || 0) + 1;
+      continue;
+    }
+    const name = String(r[1] || '');
+    const amount = Number(r[4] || 0) || 0;
+    const code = DC_STOCK_CODE_MAP[name] || '';
+    parsed.push([fmtExcelDate(r[0]), '분배금입금', '현금배당', code, name, '', '', amount, '']);
+  }
+  return { parsed, skipped, deduped: {} };
+}
+
+// DC 입금(부담금) 파서 — 2행 pair, '부담금납입완료'만, 취소건(bot[1]='취소완료') 자동 skip
+function parseDcDeposits(raw) {
+  const parsed = [];
+  const skipped = {};
+  let i = 2;
+  while (i < raw.length - 1) {
+    const top = raw[i], bot = raw[i+1];
+    const status = String(top[1] || '');
+    if (status !== '부담금납입완료') {
+      const cancel = String(bot[1] || '') || '(상태 없음)';
+      skipped[cancel] = (skipped[cancel] || 0) + 1;
+      i += 2; continue;
+    }
+    const amount = Number(top[2] || 0) || 0;
+    parsed.push([fmtExcelDate(top[0]), '입금', '부담금납입', '', '', '', '', amount, '']);
+    i += 2;
+  }
+  return { parsed, skipped, deduped: {} };
+}
+
 // ISA/Kairos 전용 파서 — 2행 pair 구조 (종목코드 영문 시작 'A' 제거)
 function parseIsaKairos(raw) {
   const typeMap = {
@@ -1935,10 +2010,12 @@ function processExcel(file) {
       }
 
       let result;
-      if (format === 'isa_kairos') {
-        result = parseIsaKairos(raw);
-      } else {
-        showToast(`'${format}' 형식은 아직 지원되지 않습니다. 조만간 추가됩니다.`, 'error');
+      if (format === 'isa_kairos')        result = parseIsaKairos(raw);
+      else if (format === 'dc_trades')    result = parseDcTrades(raw);
+      else if (format === 'dc_dividends') result = parseDcDividends(raw);
+      else if (format === 'dc_deposits')  result = parseDcDeposits(raw);
+      else {
+        showToast(`'${format}' 형식은 아직 지원되지 않습니다.`, 'error');
         return;
       }
 

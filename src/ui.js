@@ -52,9 +52,9 @@ function showPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const page = document.getElementById('page-' + name);
   if (page) page.classList.add('active');
-  const navMap = { transactions:'거래내역', portfolio:'포트폴리오', dividend:'분배금', deposit:'입금내역', calculator:'계산기', settings:'설정', add:'거래 추가' };
-  document.querySelectorAll('.nav-item').forEach(n => {
-    if (n.textContent.trim() === (navMap[name] || '')) n.classList.add('active');
+  // data-route 기반 매칭 — 같은 라벨("설정")이 여러 위치에 있어도 정확히 구분됨
+  document.querySelectorAll('.nav-item[data-route="' + name + '"]').forEach(n => {
+    n.classList.add('active');
   });
   if (name === 'portfolio') loadPortfolio();
   if (name === 'dividend')  loadDividend();

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-contrib-ui">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-cc-contrib">
 </head>
 <body>
 
@@ -520,11 +520,19 @@
                 <label>기간 (년)</label>
                 <input type="number" id="cc_years" placeholder="예: 10" oninput="runCompound()">
               </div>
-              <div class="input-group">
-                <label>월 적립금 (원, 선택)</label>
-                <input type="number" id="cc_monthly" placeholder="0" oninput="runCompound()">
-              </div>
             </div>
+
+            <div class="divider"></div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <span style="font-size:12px;font-weight:600;color:var(--text);">적립 계획 (단계별, 연차 기준)</span>
+              <span style="font-size:11px;color:var(--text2);">구간이 겹치지 않게 · 기간 밖은 무시됨</span>
+            </div>
+            <div id="cc_contrib_rows"></div>
+            <div class="flex-row" style="margin-top:8px;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="addCcContribRow()">+ 단계 추가</button>
+            </div>
+
             <div class="flex-row" style="margin-top:12px;">
               <button class="btn btn-secondary btn-sm" onclick="prefillCompoundFromAccount()">현재 계좌 불러오기</button>
               <button class="btn btn-secondary btn-sm" onclick="resetCompound()">초기화</button>
@@ -813,12 +821,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-contrib-ui"></script>
-<script src="src/supabase.js?v=2026-04-15-contrib-ui"></script>
-<script src="src/quotes.js?v=2026-04-15-contrib-ui"></script>
-<script src="src/format.js?v=2026-04-15-contrib-ui"></script>
-<script src="src/calc.js?v=2026-04-15-contrib-ui"></script>
-<script src="src/ui.js?v=2026-04-15-contrib-ui"></script>
+<script src="src/config.js?v=2026-04-15-cc-contrib"></script>
+<script src="src/supabase.js?v=2026-04-15-cc-contrib"></script>
+<script src="src/quotes.js?v=2026-04-15-cc-contrib"></script>
+<script src="src/format.js?v=2026-04-15-cc-contrib"></script>
+<script src="src/calc.js?v=2026-04-15-cc-contrib"></script>
+<script src="src/ui.js?v=2026-04-15-cc-contrib"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1659,12 +1667,77 @@ async function loadDeposit() {
   tbody.innerHTML = depHtml.reverse().join('');
 }
 
-// ── 복리계산기 ──
+// ── 복리계산기 (연차 기준 단계별 적립) ──
+// 설정 페이지의 contributions는 calendar year 기반이고, 계산기 탭은 연차(1년차, 2년차...) 기반.
+// 내부적으로는 동일한 computeCompound를 쓰되 startYear=1로 세팅해서 calYear가 1..N이 되게 함.
+
+function appendCcContribRow(wrap, c) {
+  const row = document.createElement('div');
+  row.className = 'cc-contrib-row';
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;';
+  row.innerHTML = `
+    <input type="number" class="ccc-from" placeholder="시작 연차" value="${c.from||''}" style="width:100px;">
+    <span style="color:var(--text2);">~</span>
+    <input type="number" class="ccc-to"   placeholder="종료 연차" value="${c.to||''}"   style="width:100px;">
+    <span style="color:var(--text2);">년차</span>
+    <select class="ccc-freq" style="width:80px;">
+      <option value="day"  ${c.freq==='day' ?'selected':''}>일</option>
+      <option value="month"${c.freq==='month'?'selected':''}>월</option>
+      <option value="year" ${c.freq==='year' ?'selected':''}>연</option>
+    </select>
+    <input type="number" class="ccc-amount" placeholder="금액 (원)" value="${c.amount||0}" style="width:160px;">
+    <button type="button" class="btn btn-secondary btn-sm" onclick="this.parentNode.remove(); runCompound();" style="padding:4px 10px;">삭제</button>
+  `;
+  row.querySelectorAll('input, select').forEach(el => {
+    el.style.background = 'var(--bg)';
+    el.style.border = '1px solid var(--border)';
+    el.style.borderRadius = '6px';
+    el.style.color = 'var(--text)';
+    el.style.padding = '6px 10px';
+    el.style.fontSize = '12px';
+    el.style.outline = 'none';
+    el.addEventListener('input', runCompound);
+    el.addEventListener('change', runCompound);
+  });
+  wrap.appendChild(row);
+}
+
+function addCcContribRow() {
+  const wrap = document.getElementById('cc_contrib_rows');
+  if (!wrap) return;
+  appendCcContribRow(wrap, { from: 1, to: 10, freq: 'month', amount: 0 });
+  runCompound();
+}
+
+function readCcContribRows() {
+  const wrap = document.getElementById('cc_contrib_rows');
+  if (!wrap) return [];
+  const out = [];
+  wrap.querySelectorAll('.cc-contrib-row').forEach(r => {
+    const from = Number(r.querySelector('.ccc-from').value);
+    const to   = Number(r.querySelector('.ccc-to').value);
+    const freq = r.querySelector('.ccc-freq').value;
+    const amount = Number(r.querySelector('.ccc-amount').value) || 0;
+    if (!amount || amount <= 0) return;
+    if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) return;
+    out.push({ from, to, freq, amount });
+  });
+  return out;
+}
+
+function renderCcContribRows(contribs) {
+  const wrap = document.getElementById('cc_contrib_rows');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const list = (Array.isArray(contribs) && contribs.length > 0) ? contribs : [{ from:1, to:10, freq:'month', amount:0 }];
+  list.forEach(c => appendCcContribRow(wrap, c));
+}
+
 function runCompound() {
   const principal = Number(document.getElementById('cc_principal').value) || 0;
   const ratePct   = Number(document.getElementById('cc_rate').value);
   const years     = Number(document.getElementById('cc_years').value) || 0;
-  const monthly   = Number(document.getElementById('cc_monthly').value) || 0;
+  const contribs  = readCcContribRows();
 
   const finalEl    = document.getElementById('cc_final');
   const contribEl  = document.getElementById('cc_contrib');
@@ -1672,11 +1745,12 @@ function runCompound() {
   const tbody      = document.getElementById('cc_schedule');
   const noteEl     = document.getElementById('cc_note');
 
-  if (!(principal > 0 || monthly > 0) || !Number.isFinite(ratePct) || years <= 0) {
+  const anyContrib = contribs.length > 0;
+  if ((!(principal > 0) && !anyContrib) || !Number.isFinite(ratePct) || years <= 0) {
     finalEl.textContent = '—';
     contribEl.textContent = '—';
     interestEl.textContent = '—';
-    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p>원금 또는 월 적립금, 수익률(%), 기간(년)을 입력하세요</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><p>원금·수익률·기간, 또는 적립 계획을 1개 이상 입력하세요</p></div></td></tr>';
     noteEl.textContent = '';
     return;
   }
@@ -1685,7 +1759,9 @@ function runCompound() {
     principal,
     annualRate: ratePct / 100,
     years,
-    monthly,
+    contributions: contribs,
+    startYear: 1,    // 연차 체계 (1년차 = calYear 1)
+    startMonth: 0,
   });
 
   finalEl.textContent    = result.finalValue.toLocaleString() + '원';
@@ -1694,20 +1770,23 @@ function runCompound() {
 
   tbody.innerHTML = result.schedule.map(s => `
     <tr>
-      <td class="td-right">${s.year}년</td>
+      <td class="td-right">${s.calYear || s.year}년차</td>
       <td class="td-right">${s.startBalance.toLocaleString()}</td>
       <td class="td-right">${s.contrib.toLocaleString()}</td>
       <td class="td-right text-green">${s.interest.toLocaleString()}</td>
       <td class="td-right" style="color:var(--text)">${s.endBalance.toLocaleString()}</td>
     </tr>
   `).join('');
-  noteEl.textContent = '월 복리 기준';
+  noteEl.textContent = anyContrib
+    ? `${contribs.length}단계 적립 · 월 복리 기준`
+    : '월 복리 기준';
 }
 
 function resetCompound() {
-  ['cc_principal','cc_rate','cc_years','cc_monthly'].forEach(id => {
+  ['cc_principal','cc_rate','cc_years'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  renderCcContribRows([]);
   runCompound();
 }
 
@@ -1732,18 +1811,16 @@ function prefillCompoundFromAccount() {
   }
   document.getElementById('cc_years').value = years;
 
-  // 월 적립금: 총 입금액 / 경과 개월 수
+  // 평균 월 적립: 총 입금액 / 경과 개월 수 → 단일 단계 적립 행으로
   if (depDates.length) {
     const first = new Date(depDates[0]);
     const now = new Date();
     const months = Math.max(1, Math.round((now - first) / (1000 * 60 * 60 * 24 * 30.4375)));
     const avgMonthly = Math.round(flows.deposit / months);
-    document.getElementById('cc_monthly').value = avgMonthly;
+    renderCcContribRows([{ from: 1, to: years, freq: 'month', amount: avgMonthly }]);
   }
 
-  // 수익률 힌트: 비워둠 (사용자가 목표 수익률을 직접 입력)
   document.getElementById('cc_rate').value = document.getElementById('cc_rate').value || 7;
-
   runCompound();
   showToast('현재 계좌 기준으로 불러왔습니다', 'success');
 }
@@ -2234,6 +2311,9 @@ function selectAccount(name) {
 // 오늘 날짜 기본값
 document.getElementById('f_date').value = new Date().toISOString().split('T')[0];
 onTypeChange();
+
+// 계산기 탭 적립 계획 초기 빈 행 1개
+renderCcContribRows([]);
 </script>
 </body>
 </html>

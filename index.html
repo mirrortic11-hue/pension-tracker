@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-xlsx-only">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-excel-dates">
 </head>
 <body>
 
@@ -792,12 +792,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-xlsx-only"></script>
-<script src="src/supabase.js?v=2026-04-15-xlsx-only"></script>
-<script src="src/quotes.js?v=2026-04-15-xlsx-only"></script>
-<script src="src/format.js?v=2026-04-15-xlsx-only"></script>
-<script src="src/calc.js?v=2026-04-15-xlsx-only"></script>
-<script src="src/ui.js?v=2026-04-15-xlsx-only"></script>
+<script src="src/config.js?v=2026-04-15-excel-dates"></script>
+<script src="src/supabase.js?v=2026-04-15-excel-dates"></script>
+<script src="src/quotes.js?v=2026-04-15-excel-dates"></script>
+<script src="src/format.js?v=2026-04-15-excel-dates"></script>
+<script src="src/calc.js?v=2026-04-15-excel-dates"></script>
+<script src="src/ui.js?v=2026-04-15-excel-dates"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──
@@ -1838,9 +1838,31 @@ function processExcel(file) {
   reader.onload = function(e) {
     try {
       // codepage: 949 → CP949/EUC-KR 한글 자동 디코딩 (국내 증권사 엑셀 대부분)
-      const wb = XLSX.read(e.target.result, { type: 'array', codepage: 949 });
+      // cellDates: true → 날짜 셀을 Date 객체로 변환 (Excel serial number 방어)
+      const wb = XLSX.read(e.target.result, { type: 'array', codepage: 949, cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      // 날짜 포맷터: Date / 숫자(Excel serial) / 문자열 전부 YYYY-MM-DD로
+      function fmtDate(v) {
+        if (!v && v !== 0) return '';
+        if (v instanceof Date && !isNaN(v)) {
+          const y = v.getFullYear();
+          const m = String(v.getMonth() + 1).padStart(2, '0');
+          const d = String(v.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+        if (typeof v === 'number' && Number.isFinite(v)) {
+          // Excel serial (days since 1899-12-30)
+          const ms = Math.round(v * 86400) * 1000;
+          const d = new Date(Date.UTC(1899, 11, 30) + ms);
+          const y = d.getUTCFullYear();
+          const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const da = String(d.getUTCDate()).padStart(2, '0');
+          return `${y}-${mo}-${da}`;
+        }
+        return String(v);
+      }
 
       const typeMap = {
         '주식매수입고': '매수', '주식매도출고': '매도',
@@ -1859,7 +1881,7 @@ function processExcel(file) {
         if (구분) {
           let code = r1[4] ? String(r1[4]).replace(/^A/, '') : '';
           parsed.push([
-            r1[0], 구분, txType, code, r2[4] || '',
+            fmtDate(r1[0]), 구분, txType, code, r2[4] || '',
             r2[2] || '', r2[3] || '', r1[5] || '', r1[7] || ''
           ]);
         } else if (txType) {

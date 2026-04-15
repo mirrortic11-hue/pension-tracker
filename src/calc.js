@@ -5,11 +5,23 @@
 //   0 trade_date  1 type  2 raw_type  3 stock_code  4 stock_name
 //   5 quantity    6 price 7 amount    8 fee         9 id
 
+// Stock-grouping key: prefer stock_code, fall back to stock_name so that
+// DC/IRP rows (which have no code for historical symbols) can still be
+// aggregated. Returns empty string → caller skips the row.
+function stockKey(row) {
+  const code = row[3];
+  if (code) return String(code);
+  const name = row[4];
+  if (name) return 'name:' + String(name);
+  return '';
+}
+
 /**
  * Moving-average cost basis aggregation.
  * Sorts same-day rows as 매수 → 매도 → 기타 to prevent phantom holdings
  * from sell-before-buy ordering (see commit d0cebbf).
- * Returns: { [code]: { name, code, holdQty, holdCost, div } }
+ * Returns: { [key]: { name, code, holdQty, holdCost, div } }
+ * where key is the stock_code when available, otherwise 'name:<name>'.
  */
 function computeHoldings(allRows) {
   const stocks = {};
@@ -23,27 +35,27 @@ function computeHoldings(allRows) {
   });
 
   txRows.forEach(r => {
-    const code = r[3];
-    if (!code) return;
-    if (!stocks[code]) stocks[code] = { name: r[4], code, holdQty:0, holdCost:0, div:0 };
+    const key = stockKey(r);
+    if (!key) return;
+    if (!stocks[key]) stocks[key] = { name: r[4], code: r[3] || '', holdQty:0, holdCost:0, div:0 };
     const qty = Number(r[5]) || 0;
     const amt = Number(r[7]) || 0;
     const fee = Number(r[8]) || 0;
     if (r[1] === '매수') {
-      stocks[code].holdQty += qty;
-      stocks[code].holdCost += (amt + fee);
+      stocks[key].holdQty += qty;
+      stocks[key].holdCost += (amt + fee);
     }
-    if (r[1] === '매도' && qty > 0 && stocks[code].holdQty > 0) {
-      const sellQty = Math.min(qty, stocks[code].holdQty);
-      const avgBeforeSell = stocks[code].holdCost / stocks[code].holdQty;
-      stocks[code].holdCost -= avgBeforeSell * sellQty;
-      stocks[code].holdQty -= sellQty;
-      if (stocks[code].holdQty <= 0.000001) {
-        stocks[code].holdQty = 0;
-        stocks[code].holdCost = 0;
+    if (r[1] === '매도' && qty > 0 && stocks[key].holdQty > 0) {
+      const sellQty = Math.min(qty, stocks[key].holdQty);
+      const avgBeforeSell = stocks[key].holdCost / stocks[key].holdQty;
+      stocks[key].holdCost -= avgBeforeSell * sellQty;
+      stocks[key].holdQty -= sellQty;
+      if (stocks[key].holdQty <= 0.000001) {
+        stocks[key].holdQty = 0;
+        stocks[key].holdCost = 0;
       }
     }
-    if (r[1] === '분배금입금') { stocks[code].div += amt; }
+    if (r[1] === '분배금입금') { stocks[key].div += amt; }
   });
 
   return stocks;
@@ -57,16 +69,17 @@ function computeHoldings(allRows) {
 function computeNetPositions(rows) {
   const stocks = {};
   rows.forEach(r => {
-    const code = r[3];
-    if (!code || !['매수','매도'].includes(r[1])) return;
-    if (!stocks[code]) stocks[code] = { buyQty:0, buyAmt:0, sellQty:0 };
+    if (!['매수','매도'].includes(r[1])) return;
+    const key = stockKey(r);
+    if (!key) return;
+    if (!stocks[key]) stocks[key] = { code: r[3] || '', name: r[4] || '', buyQty:0, buyAmt:0, sellQty:0 };
     const qty = Number(r[5]) || 0;
     const amt = Number(r[7]) || 0;
-    if (r[1] === '매수') { stocks[code].buyQty += qty; stocks[code].buyAmt += amt; }
-    if (r[1] === '매도') { stocks[code].sellQty += qty; }
+    if (r[1] === '매수') { stocks[key].buyQty += qty; stocks[key].buyAmt += amt; }
+    if (r[1] === '매도') { stocks[key].sellQty += qty; }
   });
   return Object.entries(stocks)
-    .map(([code, s]) => ({ code, netQty: s.buyQty - s.sellQty, buyAmt: s.buyAmt, buyQty: s.buyQty }))
+    .map(([key, s]) => ({ code: s.code, name: s.name, netQty: s.buyQty - s.sellQty, buyAmt: s.buyAmt, buyQty: s.buyQty }))
     .filter(s => s.netQty > 0);
 }
 

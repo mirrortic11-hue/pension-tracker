@@ -188,6 +188,26 @@ aside {
 }
 .nav-item svg { width: 15px; height: 15px; flex-shrink: 0; }
 
+/* 계좌 하위 메뉴 (nested nav-item) */
+.nav-item.nav-sub {
+  padding: 6px 20px 6px 30px;
+  font-size: 12px;
+  margin-left: 0;
+}
+.nav-item.nav-sub::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--text2);
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+.nav-item.nav-sub.active::before {
+  background: var(--accent);
+  opacity: 1;
+}
+
 /* ── 메인 콘텐츠 ── */
 main {
   flex: 1;

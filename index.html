@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연금 투자 관리</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles/main.css?v=2026-04-15-add-isa">
+<link rel="stylesheet" href="styles/main.css?v=2026-04-15-nested-nav">
 </head>
 <body>
 
@@ -31,11 +31,19 @@
   <aside>
     <div class="sidebar-section">
       <div class="sidebar-label">계좌</div>
+
+      <!-- 개인연금 1 (활성) -->
       <div class="account-item active" onclick="selectAccount('연금1')">
         <span>🏦</span>
         <span>개인연금 1</span>
         <span class="badge">활성</span>
       </div>
+      <div class="nav-item nav-sub active" onclick="showPage('transactions')">거래내역</div>
+      <div class="nav-item nav-sub" onclick="showPage('portfolio')">포트폴리오</div>
+      <div class="nav-item nav-sub" onclick="showPage('dividend')">분배금</div>
+      <div class="nav-item nav-sub" onclick="showPage('deposit')">입금내역</div>
+
+      <!-- 준비중 계좌들 -->
       <div class="account-item" onclick="showToast('준비 중입니다', 'info')">
         <span>🏦</span>
         <span>개인연금 2</span>
@@ -62,22 +70,6 @@
 
     <div class="sidebar-section">
       <div class="sidebar-label">메뉴</div>
-    </div>
-    <div class="nav-item active" onclick="showPage('transactions')">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A2.5 2.5 0 0 1 3.5 0h8.75a.75.75 0 0 1 .75.75v3a.75.75 0 0 1-1.5 0V1.5h-8a1 1 0 0 0-1 1v6.708A2.492 2.492 0 0 1 3.5 9h3.25a.75.75 0 0 1 0 1.5H3.5a1 1 0 1 0 0 2h5.75a.75.75 0 0 1 0 1.5H3.5A2.5 2.5 0 0 1 1 11.5v-9zm13.23 7.79a.75.75 0 0 0-1.06-1.06l-1.97 1.97-.97-.97a.75.75 0 0 0-1.06 1.06l1.5 1.5a.75.75 0 0 0 1.06 0l2.5-2.5z"/></svg>
-      거래내역
-    </div>
-    <div class="nav-item" onclick="showPage('portfolio')">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 0 0-1.5 0v12.5c0 .414.336.75.75.75h14.5a.75.75 0 0 0 0-1.5H1.5V1.75zm14.28 2.53a.75.75 0 0 0-1.06-1.06L10 7.94 7.53 5.47a.75.75 0 0 0-1.06 0L3.22 8.72a.75.75 0 0 0 1.06 1.06L7 6.06l2.47 2.47a.75.75 0 0 0 1.06 0l5.25-5.25z"/></svg>
-      포트폴리오
-    </div>
-    <div class="nav-item" onclick="showPage('dividend')">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0zm7-3.25v2.992l2.028.812a.75.75 0 0 1-.557 1.392l-2.5-1A.75.75 0 0 1 7 8.25v-3.5a.75.75 0 0 1 1.5 0z"/></svg>
-      분배금
-    </div>
-    <div class="nav-item" onclick="showPage('deposit')">
-      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M10.5 1.5a.5.5 0 0 0-1 0V4h-3V1.5a.5.5 0 0 0-1 0V4H4a2 2 0 0 0-2 2v1.5h-.5a.5.5 0 0 0 0 1H2v5a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8.5h.5a.5.5 0 0 0 0-1H14V6a2 2 0 0 0-2-2h-1.5V1.5z"/></svg>
-      입금내역
     </div>
     <div class="nav-item" onclick="showPage('calculator')">
       <svg viewBox="0 0 16 16" fill="currentColor"><path d="M12 1a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2h8zM4 2a1 1 0 0 0-1 1v3h10V3a1 1 0 0 0-1-1H4zm9 5H3v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7zM5 10a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm2 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm4 0a1 1 0 1 1 2 0 1 1 0 0 1-2 0zm0-3a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM5 13a1 1 0 1 1 2 0 1 1 0 0 1-2 0z"/></svg>
@@ -764,12 +756,12 @@ function doPost(e) {
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
-<script src="src/config.js?v=2026-04-15-add-isa"></script>
-<script src="src/supabase.js?v=2026-04-15-add-isa"></script>
-<script src="src/quotes.js?v=2026-04-15-add-isa"></script>
-<script src="src/format.js?v=2026-04-15-add-isa"></script>
-<script src="src/calc.js?v=2026-04-15-add-isa"></script>
-<script src="src/ui.js?v=2026-04-15-add-isa"></script>
+<script src="src/config.js?v=2026-04-15-nested-nav"></script>
+<script src="src/supabase.js?v=2026-04-15-nested-nav"></script>
+<script src="src/quotes.js?v=2026-04-15-nested-nav"></script>
+<script src="src/format.js?v=2026-04-15-nested-nav"></script>
+<script src="src/calc.js?v=2026-04-15-nested-nav"></script>
+<script src="src/ui.js?v=2026-04-15-nested-nav"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ── 상태 ──

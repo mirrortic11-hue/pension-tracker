@@ -457,11 +457,36 @@ tbody td {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
-  min-width: 0; /* grid 아이템 내부 긴 텍스트가 grid를 밀어내지 않게 */
+  min-width: 0;
   overflow: hidden;
 }
 .summary-card .value {
   overflow-wrap: anywhere;
+}
+
+/* 좁은 화면: 3컬럼 고정 + 폰트/패딩 축소 (3x2 / 3x3 정렬 유지) */
+@media (max-width: 1200px) {
+  .summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .summary-card { padding: 13px; }
+  .summary-card .label { font-size: 10px; margin-bottom: 6px; }
+  .summary-card .value { font-size: 15px; }
+  .summary-card .sub { font-size: 10px; }
+}
+
+@media (max-width: 820px) {
+  .summary-grid { gap: 8px; }
+  .summary-card { padding: 11px; }
+  .summary-card .value { font-size: 14px; }
+  .summary-card .label { font-size: 9px; letter-spacing: 0.3px; }
+}
+
+@media (max-width: 560px) {
+  .summary-card { padding: 9px; }
+  .summary-card .value { font-size: 12.5px; }
+  .summary-card .sub { font-size: 9px; }
 }
 .summary-card .label {
   font-size: 11px;

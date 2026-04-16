@@ -244,11 +244,12 @@
                 <th class="td-right">단가</th>
                 <th class="td-right">거래금액</th>
                 <th class="td-right">수수료</th>
+                <th style="width:50px"></th>
               </tr>
             </thead>
             <tbody id="txBody">
               <tr>
-                <td colspan="9">
+                <td colspan="10">
                   <div class="empty-state">
                     <p>⚙ 설정에서 구글 스프레드시트를 연동하면 데이터가 표시됩니다</p>
                   </div>
@@ -1011,7 +1012,7 @@ function clearAccountViews() {
 
   // 거래내역 테이블
   const txBody = document.getElementById('txBody');
-  if (txBody) txBody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
+  if (txBody) txBody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
   setText('rowCount', '로딩 중...');
   setText('lastUpdated', '');
 
@@ -1287,7 +1288,7 @@ function renderTable(rows, opts={}) {
   const forceAll = !!opts.forceAll;
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><p>데이터가 없습니다</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><p>데이터가 없습니다</p></div></td></tr>';
     document.getElementById('rowCount').textContent = '0 건';
     if (moreBtn) moreBtn.style.display = 'none';
     return;
@@ -1309,6 +1310,7 @@ function renderTable(rows, opts={}) {
     const qty = r[5] ? Number(r[5]).toLocaleString() : '';
     const price = r[6] ? Number(r[6]).toLocaleString() : '';
     const fee = r[8] ? Number(r[8]).toLocaleString() : '';
+    const rowId = r[9] || '';
     return `<tr>
       <td>${r[0] || ''}</td>
       <td>${badge}</td>
@@ -1319,6 +1321,7 @@ function renderTable(rows, opts={}) {
       <td class="td-right">${price}</td>
       <td class="td-right" style="color:var(--text)">${amt}</td>
       <td class="td-right">${fee}</td>
+      <td class="td-center">${rowId ? `<button class="btn-delete" onclick="deleteTx(${rowId})" title="삭제">✕</button>` : ''}</td>
     </tr>`;
   }).join('');
 
@@ -1336,6 +1339,18 @@ function renderTable(rows, opts={}) {
 function showAllTx() {
   txShowAll = true;
   filterTable();
+}
+
+// ── 거래 삭제 ──
+async function deleteTx(id) {
+  if (!confirm('이 거래를 삭제하시겠습니까?')) return;
+  try {
+    await sbFetch(`transactions?id=eq.${id}`, { method: 'DELETE' });
+    showToast('삭제 완료', 'success');
+    await loadAllData();
+  } catch (e) {
+    showToast('삭제 실패: ' + e.message, 'error');
+  }
 }
 
 // ── 검색/필터 ──
@@ -2287,6 +2302,7 @@ function detectFormat(raw) {
   if (h1[0] === '등록일자' && h1[2] === '매수매도') return 'dc_trades';
   if (h1[0] === '거래일자' && h1[2] === '거래유형') return 'dc_dividends';
   if (h1[0] === '납입일자' && h1[1] === '납입상태') return 'dc_deposits';
+  if (h1[0] === '순번' && h1[1] === '납입일자' && h1[5] === '납입상태') return 'irp_deposits';
   return null;
 }
 
@@ -2341,6 +2357,25 @@ function parseDcDividends(raw) {
     const amount = Number(r[4] || 0) || 0;
     const code = DC_STOCK_CODE_MAP[name] || '';
     parsed.push([fmtExcelDate(r[0]), '분배금입금', '현금배당', code, name, '', '', amount, '']);
+  }
+  return { parsed, skipped, deduped: {} };
+}
+
+// IRP 입금(부담금) 파서 — 1행 per row, col[5]='부담금납입완료'만
+function parseIrpDeposits(raw) {
+  const parsed = [];
+  const skipped = {};
+  for (let i = 1; i < raw.length; i++) {
+    const r = raw[i];
+    if (!r || !r[1]) continue;
+    const status = String(r[5] || '');
+    if (status !== '부담금납입완료') {
+      const reason = status || String(r[6] || '') || '(상태 없음)';
+      skipped[reason] = (skipped[reason] || 0) + 1;
+      continue;
+    }
+    const amount = Number(r[2] || 0) || 0;
+    parsed.push([fmtExcelDate(r[1]), '입금', '부담금납입', '', '', '', '', amount, '']);
   }
   return { parsed, skipped, deduped: {} };
 }
@@ -2423,6 +2458,7 @@ function processExcel(file) {
       else if (format === 'dc_trades')    result = parseDcTrades(raw);
       else if (format === 'dc_dividends') result = parseDcDividends(raw);
       else if (format === 'dc_deposits')  result = parseDcDeposits(raw);
+      else if (format === 'irp_deposits') result = parseIrpDeposits(raw);
       else {
         showToast(`'${format}' 형식은 아직 지원되지 않습니다.`, 'error');
         return;

@@ -2230,10 +2230,13 @@ function renderDivGoal(rows, holdings, quoteMap) {
       const divRatio = totalNeeded > 0 ? Math.round(totalDivReinvested / totalNeeded * 100) : 0;
       timelineHtml = `
         <div style="margin-top:12px;padding:14px 16px;background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);border-radius:8px;">
-          <div style="font-size:15px;margin-bottom:10px;">
-            <strong style="color:var(--accent);">${period}</strong>, 총 <strong style="color:var(--accent);">${totalNeeded.toLocaleString()}원</strong>이 필요합니다
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:15px;">
+              <strong style="color:var(--accent);">${period}</strong>, 총 <strong style="color:var(--accent);">${totalNeeded.toLocaleString()}원</strong>이 필요합니다
+            </div>
+            <button onclick="this.parentElement.nextElementSibling.classList.toggle('hidden');this.textContent=this.textContent==='자세히 ▾'?'접기 ▴':'자세히 ▾'" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;white-space:nowrap;">자세히 ▾</button>
           </div>
-          <div style="font-size:12px;color:var(--text2);line-height:1.8;">
+          <div class="hidden" style="font-size:12px;color:var(--text2);line-height:1.8;margin-top:10px;">
             <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px;">
               <span>본인 적립: <strong style="color:var(--text);">${Math.round(totalInvested).toLocaleString()}원</strong> (월 ${monthlyContrib.toLocaleString()}원 × ${months}개월)</span>
               <span>배당 재투자: <strong style="color:var(--green);">${Math.round(totalDivReinvested).toLocaleString()}원</strong> (전체의 ${divRatio}%)</span>

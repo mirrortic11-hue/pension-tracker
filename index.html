@@ -1965,7 +1965,7 @@ function _divGoalHoldingOptions() {
   return Object.values(stocks).filter(h => h.holdQty > 0);
 }
 
-function addDivGoalStockRow(code) {
+function addDivGoalStockRow(code, pct) {
   const container = document.getElementById('divGoal_stock_rows');
   if (!container) return;
   const holding = _divGoalHoldingOptions();
@@ -1977,6 +1977,8 @@ function addDivGoalStockRow(code) {
       <option value="">종목 선택</option>
       ${holding.map(h => `<option value="${h.code}" ${h.code === code ? 'selected' : ''}>${h.name}</option>`).join('')}
     </select>
+    <input type="number" class="divGoal-stock-pct" style="width:70px;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;text-align:right;" placeholder="%" min="1" max="100" value="${pct || ''}">
+    <span style="color:var(--text2);font-size:13px;">%</span>
     <button class="btn-delete" onclick="this.parentElement.remove()" title="삭제">✕</button>
   `;
   container.appendChild(row);
@@ -1991,9 +1993,9 @@ function loadDivGoalForm() {
     container.innerHTML = '';
     const stocks = saved.stocks || [];
     if (stocks.length) {
-      stocks.forEach(s => addDivGoalStockRow(s.stockCode));
+      stocks.forEach(s => addDivGoalStockRow(s.stockCode, s.pct));
     } else if (saved.stockCode) {
-      addDivGoalStockRow(saved.stockCode);
+      addDivGoalStockRow(saved.stockCode, 100);
     }
   }
 }
@@ -2001,15 +2003,26 @@ function loadDivGoalForm() {
 function saveDivGoalForm() {
   const amtEl = document.getElementById('divGoal_amount');
   const amount = Number(String(amtEl.value).replace(/[^\d]/g, '')) || 0;
-  const selects = document.querySelectorAll('.divGoal-stock-select');
+  const rows = document.getElementById('divGoal_stock_rows')?.children || [];
   const stocks = [];
-  selects.forEach(sel => {
-    if (sel.value) {
-      stocks.push({ stockCode: sel.value, stockName: sel.options[sel.selectedIndex]?.text || '' });
+  for (const row of rows) {
+    const sel = row.querySelector('.divGoal-stock-select');
+    const pctInput = row.querySelector('.divGoal-stock-pct');
+    if (sel?.value) {
+      stocks.push({
+        stockCode: sel.value,
+        stockName: sel.options[sel.selectedIndex]?.text || '',
+        pct: Number(pctInput?.value) || 0
+      });
     }
-  });
+  }
   if (!amount || !stocks.length) {
     showToast('목표 금액과 종목을 1개 이상 입력하세요', 'error');
+    return;
+  }
+  const totalPct = stocks.reduce((s, st) => s + st.pct, 0);
+  if (totalPct !== 100) {
+    showToast(`비율 합계가 ${totalPct}%입니다. 100%로 맞춰주세요`, 'error');
     return;
   }
   localStorage.setItem(getDivGoalKey(), JSON.stringify({ amount, stocks }));
@@ -2032,9 +2045,6 @@ function renderDivGoal(rows, holdings, quoteMap) {
   const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lmPrefix = `${lastM.getFullYear()}-${String(lastM.getMonth()+1).padStart(2,'0')}`;
 
-  const stockCount = stockList.length;
-  const perStockAnnual = annualGoal / stockCount;
-  const perStockMonthly = monthlyGoal / stockCount;
   let totalAdditionalCost = 0;
   const stockHtmls = [];
 
@@ -2057,6 +2067,9 @@ function renderDivGoal(rows, holdings, quoteMap) {
     }
     const divPerShareMonth = recentMonthDiv / h.holdQty;
     const divPerShareYear = divPerShareMonth * 12;
+    const pct = s.pct || Math.round(100 / stockList.length);
+    const perStockAnnual = annualGoal * pct / 100;
+    const perStockMonthly = monthlyGoal * pct / 100;
     const sharesNeeded = Math.ceil(perStockAnnual / divPerShareYear);
     const additionalShares = Math.max(0, sharesNeeded - h.holdQty);
     const currentPrice = quoteMap[norm]?.price || (h.holdCost / h.holdQty);
@@ -2064,7 +2077,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
     const priceLabel = quoteMap[norm]?.price ? '현재가' : '평단가';
     totalAdditionalCost += additionalCost;
 
-    const roleNote = stockCount > 1 ? ` <span style="font-size:12px;color:var(--text2);font-weight:400;">— 월 ${perStockMonthly.toLocaleString()}원 담당</span>` : '';
+    const roleNote = stockList.length > 1 ? ` <span style="font-size:12px;color:var(--text2);font-weight:400;">— ${pct}% / 월 ${perStockMonthly.toLocaleString()}원 담당</span>` : '';
     stockHtmls.push(`
       <div style="padding:12px 0;${stockHtmls.length ? 'border-top:1px solid var(--border);' : ''}">
         <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">${name}${roleNote}</div>

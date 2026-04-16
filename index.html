@@ -2112,6 +2112,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
 
   let totalAdditionalCost = 0;
   const stockHtmls = [];
+  const stockData = [];
 
   for (const s of stockList) {
     const code = s.stockCode;
@@ -2138,6 +2139,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
     const additionalCost = additionalShares * currentPrice;
     const priceLabel = quoteMap[norm]?.price ? '현재가' : '평단가';
     totalAdditionalCost += additionalCost;
+    stockData.push({ currentQty: h.holdQty, targetQty: sharesNeeded, price: currentPrice, perShareYear, pct, freq });
 
     const roleNote = stockList.length > 1 ? ` <span style="font-size:12px;color:var(--text2);font-weight:400;">— ${pct}% / 월 ${perStockMonthly.toLocaleString()}원 담당</span>` : '';
     stockHtmls.push(`
@@ -2161,9 +2163,82 @@ function renderDivGoal(rows, holdings, quoteMap) {
         전체 추가 필요 금액 합계: <span style="color:var(--accent)">${Math.round(totalAdditionalCost).toLocaleString()}원</span>
       </div>` : '';
 
+  // ── 도달 시뮬레이션: 월 적립금 + 배당 재투자 ──
+  const projSettings = getProjectionSettings();
+  const thisYear = new Date().getFullYear();
+  let monthlyContrib = 0;
+  for (const c of projSettings.contributions) {
+    if (thisYear >= (c.from || 0) && thisYear <= (c.to || 9999)) {
+      if (c.freq === 'month') monthlyContrib = Number(c.amount) || 0;
+      else if (c.freq === 'year') monthlyContrib = Math.round((Number(c.amount) || 0) / 12);
+    }
+  }
+
+  let timelineHtml = '';
+  if (monthlyContrib > 0 && stockData.length > 0) {
+    // 시뮬레이션: 종목별 현재주수 → 목표주수까지
+    const sim = stockData.map(d => ({
+      shares: d.currentQty,
+      target: d.targetQty,
+      price: d.price,
+      divPerShareMonth: d.perShareYear / 12,
+      pct: d.pct,
+      freq: d.freq,
+    }));
+    let totalInvested = 0;
+    let months = 0;
+    const MAX_MONTHS = 1200; // 100년 상한
+    while (months < MAX_MONTHS) {
+      const allDone = sim.every(d => d.shares >= d.target);
+      if (allDone) break;
+      months++;
+      // 배당수입 (보유 전체)
+      let divIncome = 0;
+      for (const d of sim) {
+        if (d.freq >= 10) {
+          divIncome += d.shares * d.divPerShareMonth;
+        } else {
+          if (months % Math.round(12 / d.freq) === 0) {
+            divIncome += d.shares * d.divPerShareMonth * Math.round(12 / d.freq);
+          }
+        }
+      }
+      const totalBudget = monthlyContrib + divIncome;
+      totalInvested += monthlyContrib;
+      // 종목별 비율로 배분 매수
+      for (const d of sim) {
+        if (d.shares >= d.target) continue;
+        const budget = totalBudget * d.pct / 100;
+        const buyQty = Math.floor(budget / d.price);
+        d.shares += buyQty;
+      }
+    }
+    if (months < MAX_MONTHS) {
+      const yrs = Math.floor(months / 12);
+      const mos = months % 12;
+      const period = yrs > 0 ? `${yrs}년 ${mos}개월` : `${mos}개월`;
+      timelineHtml = `
+        <div style="margin-top:12px;padding:14px 16px;background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);border-radius:8px;font-size:15px;">
+          <strong style="color:var(--accent);">${period}</strong>, 총 적립 <strong style="color:var(--accent);">${Math.round(totalInvested).toLocaleString()}원</strong>이 필요합니다
+          <span class="tooltip-icon" style="margin-left:6px;cursor:help;color:var(--text2);font-size:13px;" title="월 적립금 ${monthlyContrib.toLocaleString()}원 + 배당 재투자 기준.\n복리 설정의 적립 계획과 종목별 배당 실적을 기반으로 시뮬레이션합니다.\n주가 변동·배당 변동은 반영하지 않습니다.">?</span>
+        </div>`;
+    } else {
+      timelineHtml = `
+        <div style="margin-top:12px;padding:14px 16px;background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.25);border-radius:8px;font-size:14px;color:var(--red);">
+          월 적립금 ${monthlyContrib.toLocaleString()}원으로는 도달이 어렵습니다 (100년 초과)
+        </div>`;
+    }
+  } else if (monthlyContrib <= 0) {
+    timelineHtml = `
+      <div style="margin-top:12px;font-size:12px;color:var(--text2);">
+        ※ 도달 기간 계산을 위해 계좌 설정 → 복리 예상 설정에서 적립 계획을 입력하세요
+      </div>`;
+  }
+
   body.innerHTML = `
     <div style="font-size:15px;line-height:1.8;">
       <div style="color:var(--text2);margin-bottom:8px;">월 <strong style="color:var(--accent)">${monthlyGoal.toLocaleString()}원</strong> 분배금을 받으려면</div>
+      ${timelineHtml}
       ${stockHtmls.join('')}
       ${totalNote}
     </div>

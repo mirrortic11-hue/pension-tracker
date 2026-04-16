@@ -2227,21 +2227,24 @@ function renderDivGoal(rows, holdings, quoteMap) {
       const mos = months % 12;
       const period = yrs > 0 ? (mos > 0 ? `${yrs}년 ${mos}개월` : `${yrs}년`) : `${mos}개월`;
       const totalNeeded = Math.round(totalInvested + totalDivReinvested);
-      const tooltip = [
-        `총 필요 금액: ${totalNeeded.toLocaleString()}원`,
-        `├ 본인 적립: ${Math.round(totalInvested).toLocaleString()}원 (월 ${monthlyContrib.toLocaleString()}원 × ${months}개월)`,
-        `└ 배당 재투자: ${Math.round(totalDivReinvested).toLocaleString()}원`,
-        ``,
-        `계산 방식:`,
-        `매월 적립금 + 보유 종목 배당금을 합산하여`,
-        `종목별 비율로 자동 매수하는 시뮬레이션.`,
-        `보유 주수가 늘면 배당도 늘어 매수가 가속됩니다.`,
-        `주가·배당 변동은 현재 기준 고정.`,
-      ].join('\n');
+      const divRatio = totalNeeded > 0 ? Math.round(totalDivReinvested / totalNeeded * 100) : 0;
       timelineHtml = `
-        <div style="margin-top:12px;padding:14px 16px;background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);border-radius:8px;font-size:15px;">
-          <strong style="color:var(--accent);">${period}</strong>, 총 <strong style="color:var(--accent);">${totalNeeded.toLocaleString()}원</strong>이 필요합니다
-          <span style="margin-left:6px;cursor:help;color:var(--text2);font-size:13px;border:1px solid var(--border);border-radius:50%;display:inline-block;width:18px;height:18px;text-align:center;line-height:18px;" title="${tooltip}">?</span>
+        <div style="margin-top:12px;padding:14px 16px;background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);border-radius:8px;">
+          <div style="font-size:15px;margin-bottom:10px;">
+            <strong style="color:var(--accent);">${period}</strong>, 총 <strong style="color:var(--accent);">${totalNeeded.toLocaleString()}원</strong>이 필요합니다
+          </div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.8;">
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px;">
+              <span>본인 적립: <strong style="color:var(--text);">${Math.round(totalInvested).toLocaleString()}원</strong> (월 ${monthlyContrib.toLocaleString()}원 × ${months}개월)</span>
+              <span>배당 재투자: <strong style="color:var(--green);">${Math.round(totalDivReinvested).toLocaleString()}원</strong> (전체의 ${divRatio}%)</span>
+            </div>
+            <div style="border-top:1px solid var(--border);padding-top:6px;margin-top:2px;">
+              매월 [적립금 ${monthlyContrib.toLocaleString()}원 + 보유 주식 배당금]을 합산 → 종목별 비율로 매수.<br>
+              주식을 사면 → 배당이 늘고 → 그 배당으로 또 매수 → 다음 달 배당 더 증가 (복리 효과).<br>
+              초반에는 적립금 위주지만 후반에는 배당 재투자 비중이 ${divRatio}%까지 커짐.<br>
+              ※ 주가·배당금은 현재 기준 고정, 실제와 차이가 있을 수 있음.
+            </div>
+          </div>
         </div>`;
     } else {
       timelineHtml = `

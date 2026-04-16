@@ -2006,26 +2006,28 @@ function renderDivGoal(rows, holdings, quoteMap) {
     return;
   }
 
-  // TTM 배당금 (해당 종목만)
+  // 최근 1개월 배당 (해당 종목) → 주당 월배당 → ×12 = 주당 연배당
   const now = new Date();
-  const y1ago = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().slice(0,10);
-  const stockDivTTM = rows
-    .filter(r => r[1] === '분배금입금' && String(r[0]) >= y1ago && (r[3] === code || normalizeKrxCode(r[3]) === normalizeKrxCode(code)))
+  const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lmPrefix = `${lastM.getFullYear()}-${String(lastM.getMonth()+1).padStart(2,'0')}`;
+  const norm = normalizeKrxCode(code);
+  const recentMonthDiv = rows
+    .filter(r => r[1] === '분배금입금' && String(r[0]).startsWith(lmPrefix)
+      && normalizeKrxCode(r[3]) === norm)
     .reduce((s,r) => s + (Number(r[7])||0), 0);
 
-  if (stockDivTTM <= 0) {
-    body.innerHTML = `<div class="empty-state"><p>${name}의 최근 12개월 배당 데이터가 없습니다</p></div>`;
+  if (recentMonthDiv <= 0) {
+    body.innerHTML = `<div class="empty-state"><p>${name}의 전월 배당 데이터가 없습니다</p></div>`;
     return;
   }
 
-  const divPerShare = stockDivTTM / h.holdQty;
-  const sharesNeeded = Math.ceil(annualGoal / divPerShare);
+  const divPerShareMonth = recentMonthDiv / h.holdQty;
+  const divPerShareYear = divPerShareMonth * 12;
+  const sharesNeeded = Math.ceil(annualGoal / divPerShareYear);
+  const additionalShares = Math.max(0, sharesNeeded - h.holdQty);
 
-  // 현재가 (시세) 또는 평단가
-  const norm = normalizeKrxCode(code);
   const currentPrice = quoteMap[norm]?.price || (h.holdCost / h.holdQty);
-  const costNeeded = sharesNeeded * currentPrice;
-
+  const additionalCost = additionalShares * currentPrice;
   const priceLabel = quoteMap[norm]?.price ? '현재가' : '평단가';
 
   body.innerHTML = `
@@ -2036,20 +2038,24 @@ function renderDivGoal(rows, holdings, quoteMap) {
       </div>
       <div style="margin-top:8px;display:flex;gap:24px;flex-wrap:wrap;">
         <div>
-          <span style="color:var(--text2)">필요 수량</span>
+          <span style="color:var(--text2)">현재 보유</span>
+          <span style="font-weight:700;margin-left:8px;">${h.holdQty.toLocaleString()}주</span>
+        </div>
+        <div>
+          <span style="color:var(--text2)">목표 수량</span>
           <span style="font-weight:700;color:var(--green);margin-left:8px;">${sharesNeeded.toLocaleString()}주</span>
         </div>
         <div>
-          <span style="color:var(--text2)">필요 금액 (${priceLabel})</span>
-          <span style="font-weight:700;color:var(--green);margin-left:8px;">약 ${Math.round(costNeeded).toLocaleString()}원</span>
+          <span style="color:var(--text2)">추가 필요</span>
+          <span style="font-weight:700;color:var(--accent);margin-left:8px;">${additionalShares.toLocaleString()}주</span>
         </div>
         <div>
-          <span style="color:var(--text2)">주당 연배당</span>
-          <span style="font-weight:700;margin-left:8px;">${Math.round(divPerShare).toLocaleString()}원</span>
+          <span style="color:var(--text2)">추가 금액 (${priceLabel})</span>
+          <span style="font-weight:700;color:var(--accent);margin-left:8px;">약 ${Math.round(additionalCost).toLocaleString()}원</span>
         </div>
       </div>
       <div style="margin-top:8px;font-size:11px;color:var(--text2);">
-        ※ 최근 12개월 주당 배당 ${Math.round(divPerShare).toLocaleString()}원 × ${sharesNeeded.toLocaleString()}주 = 연 ${(sharesNeeded * Math.round(divPerShare)).toLocaleString()}원 기준
+        ※ 주당 월배당 ${Math.round(divPerShareMonth).toLocaleString()}원 × 12 = 연 ${Math.round(divPerShareYear).toLocaleString()}원 기준 (전월 실적)
       </div>
     </div>
   `;

@@ -2110,49 +2110,83 @@ function renderDivGoal(rows, holdings, quoteMap) {
   const monthlyGoal = saved.amount;
   const annualGoal = monthlyGoal * 12;
 
-  let totalAdditionalCost = 0;
-  const stockHtmls = [];
-  const stockData = [];
-
+  // 1단계: 각 종목의 주당 연배당·현재 보유·현재 연배당 수집
+  const stockInfo = [];
   for (const s of stockList) {
     const code = s.stockCode;
     const name = s.stockName || code;
     const norm = normalizeKrxCode(code);
     const hKey = Object.keys(holdings).find(k => holdings[k].code === code);
     const h = hKey ? holdings[hKey] : null;
-    if (!h || h.holdQty <= 0) {
-      stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${name} — 보유 데이터 없음</div>`);
-      continue;
-    }
+    if (!h || h.holdQty <= 0) { stockInfo.push({ name, error: '보유 데이터 없음' }); continue; }
     const est = estimateAnnualDivPerShare(rows, code, h.holdQty);
-    if (!est) {
-      stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${name} — 배당 내역 없음</div>`);
+    if (!est) { stockInfo.push({ name, error: '배당 내역 없음' }); continue; }
+    const currentPrice = quoteMap[norm]?.price || (h.holdCost / h.holdQty);
+    const priceLabel = quoteMap[norm]?.price ? '현재가' : '평단가';
+    const currentAnnualDiv = h.holdQty * est.perShareYear;
+    const pct = s.pct || Math.round(100 / stockList.length);
+    stockInfo.push({ ...est, name, code, norm, pct, holdQty: h.holdQty, currentPrice, priceLabel, currentAnnualDiv });
+  }
+
+  // 2단계: 현재 배당 합계 → 부족분 산출
+  const currentTotalDiv = stockInfo.reduce((s, si) => s + (si.currentAnnualDiv || 0), 0);
+  const shortfall = Math.max(0, annualGoal - currentTotalDiv);
+
+  // 3단계: 부족분을 추가 매수 대상 종목에 비율 배분
+  // 이미 초과 달성한 종목은 추가 매수 불필요 → 나머지에 비율 재분배
+  const needMore = stockInfo.filter(si => !si.error && si.currentAnnualDiv < annualGoal * si.pct / 100);
+  const alreadyDone = stockInfo.filter(si => !si.error && si.currentAnnualDiv >= annualGoal * si.pct / 100);
+  const surplusDiv = alreadyDone.reduce((s, si) => s + (si.currentAnnualDiv - annualGoal * si.pct / 100), 0);
+
+  // 부족분에서 초과 종목의 잉여 배당 차감
+  const adjustedShortfall = Math.max(0, shortfall);
+  const totalPctNeedMore = needMore.reduce((s, si) => s + si.pct, 0);
+
+  let totalAdditionalCost = 0;
+  const stockHtmls = [];
+  const stockData = [];
+
+  for (const si of stockInfo) {
+    if (si.error) {
+      stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${si.name} — ${si.error}</div>`);
       continue;
     }
-    const { perShareYear, perShareLast, freq, freqLabel, lastDate, qtyAtDiv } = est;
-    const pct = s.pct || Math.round(100 / stockList.length);
-    const perStockAnnual = annualGoal * pct / 100;
-    const perStockMonthly = monthlyGoal * pct / 100;
-    const sharesNeeded = Math.ceil(perStockAnnual / perShareYear);
-    const additionalShares = Math.max(0, sharesNeeded - h.holdQty);
-    const currentPrice = quoteMap[norm]?.price || (h.holdCost / h.holdQty);
-    const additionalCost = additionalShares * currentPrice;
-    const priceLabel = quoteMap[norm]?.price ? '현재가' : '평단가';
-    totalAdditionalCost += additionalCost;
-    stockData.push({ currentQty: h.holdQty, targetQty: sharesNeeded, price: currentPrice, perShareYear, pct, freq });
+    const allocatedAnnual = annualGoal * si.pct / 100;
+    const isExceeded = si.currentAnnualDiv >= allocatedAnnual;
 
-    const roleNote = stockList.length > 1 ? ` <span style="font-size:12px;color:var(--text2);font-weight:400;">— ${pct}% / 월 ${perStockMonthly.toLocaleString()}원 담당</span>` : '';
+    let sharesNeeded, additionalShares, additionalCost;
+    if (isExceeded) {
+      sharesNeeded = si.holdQty;
+      additionalShares = 0;
+      additionalCost = 0;
+    } else {
+      // 이 종목이 담당할 부족분 = 전체 부족분 × (이 종목 비율 / 미달 종목 비율 합)
+      const myShare = totalPctNeedMore > 0 ? adjustedShortfall * (si.pct / totalPctNeedMore) : 0;
+      const targetAnnualDiv = si.currentAnnualDiv + myShare;
+      sharesNeeded = Math.ceil(targetAnnualDiv / si.perShareYear);
+      additionalShares = Math.max(0, sharesNeeded - si.holdQty);
+      additionalCost = additionalShares * si.currentPrice;
+    }
+    totalAdditionalCost += additionalCost;
+    stockData.push({ currentQty: si.holdQty, targetQty: sharesNeeded, price: si.currentPrice, perShareYear: si.perShareYear, pct: si.pct, freq: si.freq });
+
+    const perStockMonthly = monthlyGoal * si.pct / 100;
+    const roleNote = stockList.length > 1 ? ` <span style="font-size:12px;color:var(--text2);font-weight:400;">— ${si.pct}% / 월 ${perStockMonthly.toLocaleString()}원 담당</span>` : '';
+    const surplusNote = isExceeded
+      ? `<div style="margin-top:4px;font-size:11px;color:var(--green);">✓ 이미 달성 — 현재 연 배당 ${Math.round(si.currentAnnualDiv).toLocaleString()}원 (목표 ${Math.round(allocatedAnnual).toLocaleString()}원)</div>`
+      : '';
     stockHtmls.push(`
       <div style="padding:12px 0;${stockHtmls.length ? 'border-top:1px solid var(--border);' : ''}">
-        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">${name}${roleNote}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">${si.name}${roleNote}</div>
         <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:14px;">
-          <div><span style="color:var(--text2)">현재 보유</span> <strong>${h.holdQty.toLocaleString()}주</strong></div>
+          <div><span style="color:var(--text2)">현재 보유</span> <strong>${si.holdQty.toLocaleString()}주</strong></div>
           <div><span style="color:var(--text2)">목표</span> <strong style="color:var(--green)">${sharesNeeded.toLocaleString()}주</strong></div>
-          <div><span style="color:var(--text2)">추가 필요</span> <strong style="color:var(--accent)">${additionalShares.toLocaleString()}주</strong></div>
-          <div><span style="color:var(--text2)">추가 금액 (${priceLabel})</span> <strong style="color:var(--accent)">약 ${Math.round(additionalCost).toLocaleString()}원</strong></div>
+          <div><span style="color:var(--text2)">추가 필요</span> <strong style="color:${additionalShares > 0 ? 'var(--accent)' : 'var(--green)'}">${additionalShares.toLocaleString()}주</strong></div>
+          <div><span style="color:var(--text2)">추가 금액 (${si.priceLabel})</span> <strong style="color:${additionalCost > 0 ? 'var(--accent)' : 'var(--green)'}">약 ${Math.round(additionalCost).toLocaleString()}원</strong></div>
         </div>
+        ${surplusNote}
         <div style="margin-top:4px;font-size:11px;color:var(--text2);">
-          ${freqLabel} · 직전 배당(${lastDate}, ${qtyAtDiv.toLocaleString()}주 보유) 주당 ${Math.round(perShareLast).toLocaleString()}원 × ${freq}회 = 연 ${Math.round(perShareYear).toLocaleString()}원
+          ${si.freqLabel} · 직전 배당(${si.lastDate}, ${si.qtyAtDiv.toLocaleString()}주 보유) 주당 ${Math.round(si.perShareLast).toLocaleString()}원 × ${si.freq}회 = 연 ${Math.round(si.perShareYear).toLocaleString()}원
         </div>
       </div>
     `);

@@ -418,10 +418,11 @@
                 <th class="td-right">평가손익</th>
                 <th class="td-right">수익률</th>
                 <th class="td-right">분배수익률</th>
+                <th class="td-right">비중</th>
               </tr>
             </thead>
             <tbody id="portfolioBody">
-              <tr><td colspan="14"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
+              <tr><td colspan="15"><div class="empty-state"><p>데이터를 불러오는 중...</p></div></td></tr>
             </tbody>
           </table>
         </div>
@@ -430,7 +431,10 @@
       <!-- 현금예수금 -->
       <div class="card" style="padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
         <span style="font-size:13px;font-weight:600;color:var(--text2);">현금예수금</span>
-        <span id="pfCash" style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--text);">—</span>
+        <div style="display:flex;gap:16px;align-items:center;">
+          <span id="pfCash" style="font-size:16px;font-weight:700;font-family:var(--mono);color:var(--text);">—</span>
+          <span id="pfCashWeight" style="font-size:14px;font-weight:600;color:var(--text2);">—</span>
+        </div>
       </div>
     </div>
 
@@ -1061,7 +1065,7 @@ function clearAccountViews() {
 
   // 포트폴리오 테이블 + 현금예수금
   const pfBody = document.getElementById('portfolioBody');
-  if (pfBody) pfBody.innerHTML = '<tr><td colspan="14"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
+  if (pfBody) pfBody.innerHTML = '<tr><td colspan="15"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
   setHtml('pfCash', spinner);
 
   // 분배금 페이지
@@ -1837,11 +1841,22 @@ async function loadPortfolio() {
   const holding = Object.values(stocks).filter(s => s.holdQty > 0);
 
   if (!holding.length) {
-    tbody.innerHTML = '<tr><td colspan="14"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15"><div class="empty-state"><p>보유 종목이 없습니다</p></div></td></tr>';
     return;
   }
 
   const quotes = await fetchKrxQuotesForCodes(holding.map(s => s.code));
+
+  // 총 자산 = 종목 평가합 + 현금예수금
+  const cash = Math.round(flows.cash);
+  let totalAsset = cash;
+  const evalMap = {};
+  holding.forEach(s => {
+    const p = quotes[normalizeKrxCode(s.code)]?.price;
+    const ev = p ? Math.round(p * s.holdQty) : Math.round(s.holdCost);
+    evalMap[s.code] = ev;
+    totalAsset += ev;
+  });
 
   tbody.innerHTML = holding.map(s => {
     const netQty = s.holdQty;
@@ -1860,6 +1875,7 @@ async function loadPortfolio() {
     const diffClass = (diff || 0) >= 0 ? 'text-green' : 'text-red';
     const rateClass = (rate || 0) >= 0 ? 'text-green' : 'text-red';
     const pnlClass = (evalPnl || 0) >= 0 ? 'text-green' : 'text-red';
+    const weight = totalAsset > 0 ? (evalMap[s.code] / totalAsset * 100).toFixed(1) + '%' : '-';
     return `<tr>
       <td class="td-label">${nameShort}</td>
       <td><span class="tag">${s.code}</span></td>
@@ -1875,8 +1891,14 @@ async function loadPortfolio() {
       <td class="td-right ${evalPnl != null ? pnlClass : ''}">${evalPnl != null ? ((evalPnl >= 0 ? '+' : '') + evalPnl.toLocaleString()) : '-'}</td>
       <td class="td-right ${pnlRate != null ? pnlClass : ''}">${pnlRate != null ? ((pnlRate >= 0 ? '+' : '') + pnlRate.toFixed(2) + '%') : '-'}</td>
       <td class="td-right text-green">${divRate}</td>
+      <td class="td-right" style="font-weight:600;">${weight}</td>
     </tr>`;
   }).join('');
+
+  // 현금예수금 비중 표시
+  const cashWeight = totalAsset > 0 ? (cash / totalAsset * 100).toFixed(1) + '%' : '-';
+  document.getElementById('pfCash').textContent = cash.toLocaleString() + '원';
+  document.getElementById('pfCashWeight').textContent = cashWeight;
 }
 
 // ── 분배금 ──

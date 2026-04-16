@@ -2158,10 +2158,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
     `);
   }
 
-  const totalNote = stockList.length > 1
-    ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;font-size:14px;font-weight:700;">
-        전체 추가 필요 금액 합계: <span style="color:var(--accent)">${Math.round(totalAdditionalCost).toLocaleString()}원</span>
-      </div>` : '';
+  const totalNote = '';
 
   // ── 도달 시뮬레이션: 월 적립금 + 배당 재투자 ──
   const projSettings = getProjectionSettings();
@@ -2266,8 +2263,12 @@ function renderDivGoal(rows, holdings, quoteMap) {
     <div style="font-size:15px;line-height:1.8;">
       <div style="color:var(--text2);margin-bottom:8px;">월 <strong style="color:var(--accent)">${monthlyGoal.toLocaleString()}원</strong> 분배금을 받으려면</div>
       ${timelineHtml}
-      ${stockHtmls.join('')}
-      ${totalNote}
+      <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+        <button onclick="const el=this.parentElement.nextElementSibling;el.classList.toggle('hidden');this.textContent=el.classList.contains('hidden')?'종목별 상세 ▾':'종목별 상세 ▴'" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;">종목별 상세 ▾</button>
+      </div>
+      <div class="hidden">
+        ${stockHtmls.join('')}
+      </div>
     </div>
   `;
 }

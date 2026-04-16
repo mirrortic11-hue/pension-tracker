@@ -2187,6 +2187,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
         ${surplusNote}
         <div style="margin-top:4px;font-size:11px;color:var(--text2);">
           ${si.freqLabel} · 직전 배당(${si.lastDate}, ${si.qtyAtDiv.toLocaleString()}주 보유) 주당 ${Math.round(si.perShareLast).toLocaleString()}원 × ${si.freq}회 = 연 ${Math.round(si.perShareYear).toLocaleString()}원
+          · 월평균 수령액 <strong style="color:var(--text);">${Math.round(si.currentAnnualDiv / 12).toLocaleString()}원</strong>
         </div>
       </div>
     `);

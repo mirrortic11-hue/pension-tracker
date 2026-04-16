@@ -2032,6 +2032,9 @@ function renderDivGoal(rows, holdings, quoteMap) {
   const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lmPrefix = `${lastM.getFullYear()}-${String(lastM.getMonth()+1).padStart(2,'0')}`;
 
+  const stockCount = stockList.length;
+  const perStockAnnual = annualGoal / stockCount;
+  const perStockMonthly = monthlyGoal / stockCount;
   let totalAdditionalCost = 0;
   const stockHtmls = [];
 
@@ -2054,16 +2057,17 @@ function renderDivGoal(rows, holdings, quoteMap) {
     }
     const divPerShareMonth = recentMonthDiv / h.holdQty;
     const divPerShareYear = divPerShareMonth * 12;
-    const sharesNeeded = Math.ceil(annualGoal / divPerShareYear);
+    const sharesNeeded = Math.ceil(perStockAnnual / divPerShareYear);
     const additionalShares = Math.max(0, sharesNeeded - h.holdQty);
     const currentPrice = quoteMap[norm]?.price || (h.holdCost / h.holdQty);
     const additionalCost = additionalShares * currentPrice;
     const priceLabel = quoteMap[norm]?.price ? '현재가' : '평단가';
     totalAdditionalCost += additionalCost;
 
+    const roleNote = stockCount > 1 ? ` <span style="font-size:12px;color:var(--text2);font-weight:400;">— 월 ${perStockMonthly.toLocaleString()}원 담당</span>` : '';
     stockHtmls.push(`
       <div style="padding:12px 0;${stockHtmls.length ? 'border-top:1px solid var(--border);' : ''}">
-        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">${name}</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">${name}${roleNote}</div>
         <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:14px;">
           <div><span style="color:var(--text2)">현재 보유</span> <strong>${h.holdQty.toLocaleString()}주</strong></div>
           <div><span style="color:var(--text2)">목표</span> <strong style="color:var(--green)">${sharesNeeded.toLocaleString()}주</strong></div>

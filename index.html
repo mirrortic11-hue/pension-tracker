@@ -2176,7 +2176,6 @@ function renderDivGoal(rows, holdings, quoteMap) {
 
   let timelineHtml = '';
   if (monthlyContrib > 0 && stockData.length > 0) {
-    // 시뮬레이션: 종목별 현재주수 → 목표주수까지
     const sim = stockData.map(d => ({
       shares: d.currentQty,
       target: d.targetQty,
@@ -2184,33 +2183,41 @@ function renderDivGoal(rows, holdings, quoteMap) {
       divPerShareMonth: d.perShareYear / 12,
       pct: d.pct,
       freq: d.freq,
+      cash: 0,
     }));
     let totalInvested = 0;
     let months = 0;
-    const MAX_MONTHS = 1200; // 100년 상한
+    const MAX_MONTHS = 600; // 50년 상한
     while (months < MAX_MONTHS) {
       const allDone = sim.every(d => d.shares >= d.target);
       if (allDone) break;
       months++;
-      // 배당수입 (보유 전체)
+      // 배당수입 (전 종목 보유분 — 목표 도달한 종목도 배당 발생)
       let divIncome = 0;
       for (const d of sim) {
         if (d.freq >= 10) {
           divIncome += d.shares * d.divPerShareMonth;
-        } else {
-          if (months % Math.round(12 / d.freq) === 0) {
-            divIncome += d.shares * d.divPerShareMonth * Math.round(12 / d.freq);
+        } else if (d.freq >= 1) {
+          const interval = Math.round(12 / d.freq);
+          if (interval > 0 && months % interval === 0) {
+            divIncome += d.shares * d.divPerShareMonth * interval;
           }
         }
       }
+      // 예산 배분: 미달 종목에 비율 재분배
+      const pending = sim.filter(d => d.shares < d.target);
+      if (!pending.length) break;
+      const totalPctPending = pending.reduce((s,d) => s + d.pct, 0);
       const totalBudget = monthlyContrib + divIncome;
       totalInvested += monthlyContrib;
-      // 종목별 비율로 배분 매수
-      for (const d of sim) {
-        if (d.shares >= d.target) continue;
-        const budget = totalBudget * d.pct / 100;
-        const buyQty = Math.floor(budget / d.price);
-        d.shares += buyQty;
+      for (const d of pending) {
+        const ratio = d.pct / totalPctPending;
+        d.cash += totalBudget * ratio;
+        const buyQty = Math.floor(d.cash / d.price);
+        if (buyQty > 0) {
+          d.shares += buyQty;
+          d.cash -= buyQty * d.price;
+        }
       }
     }
     if (months < MAX_MONTHS) {

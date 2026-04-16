@@ -440,18 +440,26 @@
         <div class="section-title">분배금 내역</div>
       </div>
 
-      <div class="summary-grid">
+      <div class="summary-grid summary-grid-5">
         <div class="summary-card">
-          <div class="label">총 분배금 수령</div>
+          <div class="label">전월 수령액</div>
+          <div class="value text-green" id="divLastMonth">—</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">월평균 수령액</div>
+          <div class="value" id="divMonthlyAvg">—</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">최근 12개월</div>
+          <div class="value text-green" id="divTrailing12">—</div>
+        </div>
+        <div class="summary-card">
+          <div class="label">총 누적 분배금</div>
           <div class="value text-green" id="divTotal2">—</div>
         </div>
         <div class="summary-card">
-          <div class="label">수령 건수</div>
-          <div class="value" id="divCount2">—</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">분배금/입금 수익률</div>
-          <div class="value text-green" id="divRate2">—</div>
+          <div class="label">매수 대비 수익률</div>
+          <div class="value text-green" id="divYOC">—</div>
         </div>
       </div>
 
@@ -1025,8 +1033,10 @@ function clearAccountViews() {
   const divBody = document.getElementById('divBody');
   if (divBody) divBody.innerHTML = '<tr><td colspan="6"><div class="empty-state"><p><span class="spinner"></span> 데이터를 불러오는 중...</p></div></td></tr>';
   setHtml('divTotal2', spinner);
-  setText('divCount2', dash);
-  setHtml('divRate2', spinner);
+  setText('divLastMonth', dash);
+  setText('divMonthlyAvg', dash);
+  setText('divTrailing12', dash);
+  setText('divYOC', dash);
 
   // 입금내역 페이지
   const depBody = document.getElementById('depositBody');
@@ -1862,10 +1872,29 @@ async function loadDividend() {
   });
   tbody.innerHTML = divHtml.reverse().join('');
 
-  const deposit = allRows.filter(r=>r[1]==='입금').reduce((s,r)=>s+(Number(r[7])||0),0);
+  // 전월 수령액
+  const now = new Date();
+  const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lmPrefix = `${lastM.getFullYear()}-${String(lastM.getMonth()+1).padStart(2,'0')}`;
+  const lastMonthAmt = divRows.filter(r => String(r[0]).startsWith(lmPrefix)).reduce((s,r) => s + (Number(r[7])||0), 0);
+  document.getElementById('divLastMonth').textContent = lastMonthAmt.toLocaleString() + '원';
+
+  // 월평균 수령액
+  const firstDate = divRows.length ? new Date(divRows[0][0]) : now;
+  const months = Math.max(1, (now.getFullYear() - firstDate.getFullYear()) * 12 + now.getMonth() - firstDate.getMonth());
+  document.getElementById('divMonthlyAvg').textContent = Math.round(total / months).toLocaleString() + '원';
+
+  // 최근 12개월
+  const y1ago = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().slice(0,10);
+  const trailing12 = divRows.filter(r => String(r[0]) >= y1ago).reduce((s,r) => s + (Number(r[7])||0), 0);
+  document.getElementById('divTrailing12').textContent = trailing12.toLocaleString() + '원';
+
+  // 총 누적
   document.getElementById('divTotal2').textContent = total.toLocaleString() + '원';
-  document.getElementById('divCount2').textContent = divRows.length + '건';
-  document.getElementById('divRate2').textContent  = deposit > 0 ? (total/deposit*100).toFixed(1)+'%' : '-';
+
+  // 매수 대비 수익률 (Yield on Cost) = 최근 12개월 배당 / 총 매수금액
+  const totalBuy = allRows.filter(r => r[1] === '매수').reduce((s,r) => s + (Number(r[7])||0), 0);
+  document.getElementById('divYOC').textContent = totalBuy > 0 ? (trailing12 / totalBuy * 100).toFixed(1) + '%' : '-';
 }
 
 // ── 입금내역 ──

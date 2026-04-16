@@ -463,6 +463,9 @@ tbody td {
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
+.summary-grid-5 {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
 .summary-card {
   background: var(--bg2);
   border: 1px solid var(--border);

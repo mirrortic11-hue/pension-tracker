@@ -2048,40 +2048,54 @@ function saveDivGoalForm() {
   showToast('목표 분배금 설정 저장됨', 'success');
 }
 
-// 종목별 주당 연배당 추정: 최근 배당 1건 × 연간 횟수 (빈도 자동 감지)
+// 특정 날짜 시점의 종목 보유수량 계산 (매수/매도 누적)
+function holdQtyAtDate(rows, code, date) {
+  const norm = normalizeKrxCode(code);
+  let qty = 0;
+  for (const r of rows) {
+    if (String(r[0]) > date) break;
+    if (normalizeKrxCode(r[3]) !== norm) continue;
+    const q = Number(r[5]) || 0;
+    if (r[1] === '매수') qty += q;
+    else if (r[1] === '매도') qty -= q;
+  }
+  return Math.max(qty, 0);
+}
+
+// 종목별 주당 연배당 추정: 빈도 자동 감지 + 배당 시점 실제 보유수 기준
 function estimateAnnualDivPerShare(rows, code, holdQty) {
   const norm = normalizeKrxCode(code);
+  const sortedRows = [...rows].sort((a,b) => String(a[0]).localeCompare(String(b[0])));
   const divRows = rows
     .filter(r => r[1] === '분배금입금' && normalizeKrxCode(r[3]) === norm)
     .sort((a,b) => String(b[0]).localeCompare(String(a[0])));
   if (!divRows.length || holdQty <= 0) return null;
 
-  // 최근 12개월 배당 월 목록 (중복 제거)
-  const months = new Set();
+  // 최근 12개월 배당 월 목록
   const now = new Date();
   const y1ago = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().slice(0,10);
+  const months = new Set();
   divRows.forEach(r => {
     if (String(r[0]) >= y1ago) months.add(String(r[0]).substring(0,7));
   });
   const payCount = months.size;
 
-  // 빈도 판정: 10~12→월배당, 3~4→분기, 1~2→반기/연
   let freq, freqLabel;
   if (payCount >= 10) { freq = 12; freqLabel = '월배당'; }
   else if (payCount >= 3) { freq = payCount; freqLabel = `연 ${payCount}회`; }
   else if (payCount >= 1) { freq = payCount; freqLabel = payCount === 1 ? '연 1회' : `연 ${payCount}회`; }
   else { return null; }
 
-  // 가장 최근 배당 1건의 주당 금액
+  // 가장 최근 배당의 주당 금액: 배당 시점 보유수량 기준
   const lastDiv = Number(divRows[0][7]) || 0;
   const lastDate = divRows[0][0];
+  const qtyAtDiv = holdQtyAtDate(sortedRows, code, lastDate);
+  if (qtyAtDiv <= 0) return null;
 
-  // 최근 배당 시점의 보유수량 추정: 해당 날짜까지의 매수-매도 누적
-  // 간소화: 현재 보유수량 사용 (대부분 큰 차이 없음)
-  const perShareLast = lastDiv / holdQty;
+  const perShareLast = lastDiv / qtyAtDiv;
   const perShareYear = perShareLast * freq;
 
-  return { perShareYear, perShareLast, freq, freqLabel, lastDate, payCount };
+  return { perShareYear, perShareLast, freq, freqLabel, lastDate, qtyAtDiv };
 }
 
 function renderDivGoal(rows, holdings, quoteMap) {
@@ -2114,7 +2128,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
       stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${name} — 배당 내역 없음</div>`);
       continue;
     }
-    const { perShareYear, perShareLast, freq, freqLabel, lastDate } = est;
+    const { perShareYear, perShareLast, freq, freqLabel, lastDate, qtyAtDiv } = est;
     const pct = s.pct || Math.round(100 / stockList.length);
     const perStockAnnual = annualGoal * pct / 100;
     const perStockMonthly = monthlyGoal * pct / 100;
@@ -2136,7 +2150,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
           <div><span style="color:var(--text2)">추가 금액 (${priceLabel})</span> <strong style="color:var(--accent)">약 ${Math.round(additionalCost).toLocaleString()}원</strong></div>
         </div>
         <div style="margin-top:4px;font-size:11px;color:var(--text2);">
-          ${freqLabel} · 직전 배당(${lastDate}) 주당 ${Math.round(perShareLast).toLocaleString()}원 × ${freq}회 = 연 ${Math.round(perShareYear).toLocaleString()}원
+          ${freqLabel} · 직전 배당(${lastDate}, ${qtyAtDiv.toLocaleString()}주 보유) 주당 ${Math.round(perShareLast).toLocaleString()}원 × ${freq}회 = 연 ${Math.round(perShareYear).toLocaleString()}원
         </div>
       </div>
     `);

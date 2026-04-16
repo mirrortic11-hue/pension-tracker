@@ -2048,6 +2048,42 @@ function saveDivGoalForm() {
   showToast('목표 분배금 설정 저장됨', 'success');
 }
 
+// 종목별 주당 연배당 추정: 최근 배당 1건 × 연간 횟수 (빈도 자동 감지)
+function estimateAnnualDivPerShare(rows, code, holdQty) {
+  const norm = normalizeKrxCode(code);
+  const divRows = rows
+    .filter(r => r[1] === '분배금입금' && normalizeKrxCode(r[3]) === norm)
+    .sort((a,b) => String(b[0]).localeCompare(String(a[0])));
+  if (!divRows.length || holdQty <= 0) return null;
+
+  // 최근 12개월 배당 월 목록 (중복 제거)
+  const months = new Set();
+  const now = new Date();
+  const y1ago = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).toISOString().slice(0,10);
+  divRows.forEach(r => {
+    if (String(r[0]) >= y1ago) months.add(String(r[0]).substring(0,7));
+  });
+  const payCount = months.size;
+
+  // 빈도 판정: 10~12→월배당, 3~4→분기, 1~2→반기/연
+  let freq, freqLabel;
+  if (payCount >= 10) { freq = 12; freqLabel = '월배당'; }
+  else if (payCount >= 3) { freq = payCount; freqLabel = `연 ${payCount}회`; }
+  else if (payCount >= 1) { freq = payCount; freqLabel = payCount === 1 ? '연 1회' : `연 ${payCount}회`; }
+  else { return null; }
+
+  // 가장 최근 배당 1건의 주당 금액
+  const lastDiv = Number(divRows[0][7]) || 0;
+  const lastDate = divRows[0][0];
+
+  // 최근 배당 시점의 보유수량 추정: 해당 날짜까지의 매수-매도 누적
+  // 간소화: 현재 보유수량 사용 (대부분 큰 차이 없음)
+  const perShareLast = lastDiv / holdQty;
+  const perShareYear = perShareLast * freq;
+
+  return { perShareYear, perShareLast, freq, freqLabel, lastDate, payCount };
+}
+
 function renderDivGoal(rows, holdings, quoteMap) {
   const body = document.getElementById('divGoalBody');
   if (!body) return;
@@ -2059,10 +2095,6 @@ function renderDivGoal(rows, holdings, quoteMap) {
   }
   const monthlyGoal = saved.amount;
   const annualGoal = monthlyGoal * 12;
-
-  const now = new Date();
-  const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lmPrefix = `${lastM.getFullYear()}-${String(lastM.getMonth()+1).padStart(2,'0')}`;
 
   let totalAdditionalCost = 0;
   const stockHtmls = [];
@@ -2077,19 +2109,16 @@ function renderDivGoal(rows, holdings, quoteMap) {
       stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${name} — 보유 데이터 없음</div>`);
       continue;
     }
-    const recentMonthDiv = rows
-      .filter(r => r[1] === '분배금입금' && String(r[0]).startsWith(lmPrefix) && normalizeKrxCode(r[3]) === norm)
-      .reduce((s2,r) => s2 + (Number(r[7])||0), 0);
-    if (recentMonthDiv <= 0) {
-      stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${name} — 전월 배당 없음</div>`);
+    const est = estimateAnnualDivPerShare(rows, code, h.holdQty);
+    if (!est) {
+      stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${name} — 배당 내역 없음</div>`);
       continue;
     }
-    const divPerShareMonth = recentMonthDiv / h.holdQty;
-    const divPerShareYear = divPerShareMonth * 12;
+    const { perShareYear, perShareLast, freq, freqLabel, lastDate } = est;
     const pct = s.pct || Math.round(100 / stockList.length);
     const perStockAnnual = annualGoal * pct / 100;
     const perStockMonthly = monthlyGoal * pct / 100;
-    const sharesNeeded = Math.ceil(perStockAnnual / divPerShareYear);
+    const sharesNeeded = Math.ceil(perStockAnnual / perShareYear);
     const additionalShares = Math.max(0, sharesNeeded - h.holdQty);
     const currentPrice = quoteMap[norm]?.price || (h.holdCost / h.holdQty);
     const additionalCost = additionalShares * currentPrice;
@@ -2107,7 +2136,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
           <div><span style="color:var(--text2)">추가 금액 (${priceLabel})</span> <strong style="color:var(--accent)">약 ${Math.round(additionalCost).toLocaleString()}원</strong></div>
         </div>
         <div style="margin-top:4px;font-size:11px;color:var(--text2);">
-          주당 월배당 ${Math.round(divPerShareMonth).toLocaleString()}원 × 12 = 연 ${Math.round(divPerShareYear).toLocaleString()}원 (전월 실적)
+          ${freqLabel} · 직전 배당(${lastDate}) 주당 ${Math.round(perShareLast).toLocaleString()}원 × ${freq}회 = 연 ${Math.round(perShareYear).toLocaleString()}원
         </div>
       </div>
     `);

@@ -271,11 +271,11 @@
 
     </div>
 
-    <!-- ══ 거래 추가 페이지 ══ -->
+    <!-- ══ 거래 추가/수정 페이지 ══ -->
     <div class="page" id="page-add">
       <div class="section-header">
-        <div class="section-title">거래 추가</div>
-        <button class="btn btn-secondary btn-sm" onclick="showPage('transactions')">← 목록으로</button>
+        <div class="section-title" id="formTitle">거래 추가</div>
+        <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">← 목록으로</button>
       </div>
 
       <!-- 엑셀 업로드 -->
@@ -385,7 +385,7 @@
           <div class="divider"></div>
 
           <div class="flex-row">
-            <button class="btn btn-primary" onclick="submitTransaction()">구글 시트에 저장</button>
+            <button class="btn btn-primary" id="formSubmitBtn" onclick="submitTransaction()">저장</button>
             <button class="btn btn-secondary" onclick="resetForm()">초기화</button>
           </div>
         </div>
@@ -1321,7 +1321,7 @@ function renderTable(rows, opts={}) {
       <td class="td-right">${price}</td>
       <td class="td-right" style="color:var(--text)">${amt}</td>
       <td class="td-right">${fee}</td>
-      <td class="td-center">${rowId ? `<button class="btn-delete" onclick="deleteTx(${rowId})" title="삭제">✕</button>` : ''}</td>
+      <td class="td-center">${rowId ? `<button class="btn-edit" onclick="editTx(${rowId})" title="수정">✏</button><button class="btn-delete" onclick="deleteTx(${rowId})" title="삭제">🗑</button>` : ''}</td>
     </tr>`;
   }).join('');
 
@@ -1341,7 +1341,36 @@ function showAllTx() {
   filterTable();
 }
 
-// ── 거래 삭제 ──
+// ── 거래 수정/삭제 ──
+let editingTxId = null;
+
+function editTx(id) {
+  const row = allRows.find(r => r[9] === id);
+  if (!row) { showToast('거래를 찾을 수 없습니다', 'error'); return; }
+  editingTxId = id;
+  document.getElementById('formTitle').textContent = '거래 수정';
+  document.getElementById('formSubmitBtn').textContent = '수정 저장';
+  document.getElementById('f_date').value = row[0] || '';
+  document.getElementById('f_type').value = row[1] || '';
+  onTypeChange();
+  document.getElementById('f_raw_type').value = row[2] || '';
+  document.getElementById('f_code').value = row[3] || '';
+  document.getElementById('f_name').value = row[4] || '';
+  document.getElementById('f_qty').value = row[5] || '';
+  document.getElementById('f_price').value = row[6] ? Number(row[6]).toLocaleString() : '';
+  document.getElementById('f_amount').value = row[7] ? Number(row[7]).toLocaleString() : '';
+  document.getElementById('f_fee').value = row[8] ? Number(row[8]).toLocaleString() : '';
+  showPage('add');
+}
+
+function cancelEdit() {
+  editingTxId = null;
+  document.getElementById('formTitle').textContent = '거래 추가';
+  document.getElementById('formSubmitBtn').textContent = '저장';
+  resetForm();
+  showPage('transactions');
+}
+
 async function deleteTx(id) {
   if (!confirm('이 거래를 삭제하시겠습니까?')) return;
   try {
@@ -2228,29 +2257,48 @@ async function submitTransaction() {
     }
   }
 
-  // 계좌 확인
   const acctName = ACCOUNT_NAMES[currentAccountId] || currentAccountId;
-  if (!confirm(`[${acctName}]에 이 거래를 저장하시겠습니까?\n\n${date} · ${type} · ${amount.toLocaleString()}원`)) return;
+  const payload = {
+    trade_date: date, type, raw_type: raw,
+    stock_code: code, stock_name: name,
+    quantity: Number.isFinite(qty) && qty > 0 ? qty : null,
+    price: price > 0 ? price : null,
+    amount: amount,
+    fee: fee > 0 ? fee : null
+  };
 
-  try {
-    await sbFetch('transactions', {
-      method: 'POST',
-      body: JSON.stringify({
-        account_id: currentAccountId,
-        trade_date: date, type, raw_type: raw,
-        stock_code: code, stock_name: name,
-        quantity: Number.isFinite(qty) && qty > 0 ? qty : null,
-        price: price > 0 ? price : null,
-        amount: amount,
-        fee: fee > 0 ? fee : null
-      })
-    });
-    showToast('저장 완료!', 'success');
-    resetForm();
-    showPage('transactions');
-    await loadAllData();
-  } catch(e) {
-    showToast('저장 실패: ' + e.message, 'error');
+  if (editingTxId) {
+    if (!confirm(`[${acctName}] 이 거래를 수정하시겠습니까?\n\n${date} · ${type} · ${amount.toLocaleString()}원`)) return;
+    try {
+      await sbFetch(`transactions?id=eq.${editingTxId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      showToast('수정 완료!', 'success');
+      editingTxId = null;
+      document.getElementById('formTitle').textContent = '거래 추가';
+      document.getElementById('formSubmitBtn').textContent = '저장';
+      resetForm();
+      showPage('transactions');
+      await loadAllData();
+    } catch(e) {
+      showToast('수정 실패: ' + e.message, 'error');
+    }
+  } else {
+    payload.account_id = currentAccountId;
+    if (!confirm(`[${acctName}]에 이 거래를 저장하시겠습니까?\n\n${date} · ${type} · ${amount.toLocaleString()}원`)) return;
+    try {
+      await sbFetch('transactions', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      showToast('저장 완료!', 'success');
+      resetForm();
+      showPage('transactions');
+      await loadAllData();
+    } catch(e) {
+      showToast('저장 실패: ' + e.message, 'error');
+    }
   }
 }
 

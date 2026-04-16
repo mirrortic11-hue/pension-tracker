@@ -2080,8 +2080,16 @@ function estimateAnnualDivPerShare(rows, code, holdQty) {
   });
   const payCount = months.size;
 
+  // 최근 3개월 연속 배당 여부로 월배당 판정
+  const recent3 = [];
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    recent3.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  const isMonthly = recent3.every(m => months.has(m)) || payCount >= 10;
+
   let freq, freqLabel;
-  if (payCount >= 10) { freq = 12; freqLabel = '월배당'; }
+  if (isMonthly) { freq = 12; freqLabel = '월배당'; }
   else if (payCount >= 3) { freq = payCount; freqLabel = `연 ${payCount}회`; }
   else if (payCount >= 1) { freq = payCount; freqLabel = payCount === 1 ? '연 1회' : `연 ${payCount}회`; }
   else { return null; }

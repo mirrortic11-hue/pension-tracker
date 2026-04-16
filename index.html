@@ -2186,8 +2186,9 @@ function renderDivGoal(rows, holdings, quoteMap) {
       cash: 0,
     }));
     let totalInvested = 0;
+    let totalDivReinvested = 0;
     let months = 0;
-    const MAX_MONTHS = 600; // 50년 상한
+    const MAX_MONTHS = 600;
     while (months < MAX_MONTHS) {
       const allDone = sim.every(d => d.shares >= d.target);
       if (allDone) break;
@@ -2210,6 +2211,7 @@ function renderDivGoal(rows, holdings, quoteMap) {
       const totalPctPending = pending.reduce((s,d) => s + d.pct, 0);
       const totalBudget = monthlyContrib + divIncome;
       totalInvested += monthlyContrib;
+      totalDivReinvested += divIncome;
       for (const d of pending) {
         const ratio = d.pct / totalPctPending;
         d.cash += totalBudget * ratio;
@@ -2223,16 +2225,28 @@ function renderDivGoal(rows, holdings, quoteMap) {
     if (months < MAX_MONTHS) {
       const yrs = Math.floor(months / 12);
       const mos = months % 12;
-      const period = yrs > 0 ? `${yrs}년 ${mos}개월` : `${mos}개월`;
+      const period = yrs > 0 ? (mos > 0 ? `${yrs}년 ${mos}개월` : `${yrs}년`) : `${mos}개월`;
+      const totalNeeded = Math.round(totalInvested + totalDivReinvested);
+      const tooltip = [
+        `총 필요 금액: ${totalNeeded.toLocaleString()}원`,
+        `├ 본인 적립: ${Math.round(totalInvested).toLocaleString()}원 (월 ${monthlyContrib.toLocaleString()}원 × ${months}개월)`,
+        `└ 배당 재투자: ${Math.round(totalDivReinvested).toLocaleString()}원`,
+        ``,
+        `계산 방식:`,
+        `매월 적립금 + 보유 종목 배당금을 합산하여`,
+        `종목별 비율로 자동 매수하는 시뮬레이션.`,
+        `보유 주수가 늘면 배당도 늘어 매수가 가속됩니다.`,
+        `주가·배당 변동은 현재 기준 고정.`,
+      ].join('\n');
       timelineHtml = `
         <div style="margin-top:12px;padding:14px 16px;background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);border-radius:8px;font-size:15px;">
-          <strong style="color:var(--accent);">${period}</strong>, 총 적립 <strong style="color:var(--accent);">${Math.round(totalInvested).toLocaleString()}원</strong>이 필요합니다
-          <span class="tooltip-icon" style="margin-left:6px;cursor:help;color:var(--text2);font-size:13px;" title="월 적립금 ${monthlyContrib.toLocaleString()}원 + 배당 재투자 기준.\n복리 설정의 적립 계획과 종목별 배당 실적을 기반으로 시뮬레이션합니다.\n주가 변동·배당 변동은 반영하지 않습니다.">?</span>
+          <strong style="color:var(--accent);">${period}</strong>, 총 <strong style="color:var(--accent);">${totalNeeded.toLocaleString()}원</strong>이 필요합니다
+          <span style="margin-left:6px;cursor:help;color:var(--text2);font-size:13px;border:1px solid var(--border);border-radius:50%;display:inline-block;width:18px;height:18px;text-align:center;line-height:18px;" title="${tooltip}">?</span>
         </div>`;
     } else {
       timelineHtml = `
         <div style="margin-top:12px;padding:14px 16px;background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.25);border-radius:8px;font-size:14px;color:var(--red);">
-          월 적립금 ${monthlyContrib.toLocaleString()}원으로는 도달이 어렵습니다 (100년 초과)
+          월 적립금 ${monthlyContrib.toLocaleString()}원으로는 50년 내 도달이 어렵습니다
         </div>`;
     }
   } else if (monthlyContrib <= 0) {

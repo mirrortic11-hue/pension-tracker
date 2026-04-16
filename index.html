@@ -751,12 +751,15 @@
               <label>목표 월 분배금 (원)</label>
               <input type="text" inputmode="numeric" class="money-input" id="divGoal_amount" placeholder="예: 3,000,000">
             </div>
-            <div class="input-group">
-              <label>기준 종목</label>
-              <select id="divGoal_stock">
-                <option value="">보유 종목에서 선택</option>
-              </select>
-            </div>
+          </div>
+          <div class="divider"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:12px;font-weight:600;color:var(--text);">시뮬레이션 종목</span>
+            <span style="font-size:11px;color:var(--text2);">보유 종목만 추가 가능</span>
+          </div>
+          <div id="divGoal_stock_rows"></div>
+          <div class="flex-row" style="margin-top:8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addDivGoalStockRow()">+ 종목 추가</button>
           </div>
           <div class="divider"></div>
           <div class="flex-row" style="margin-top:12px;">
@@ -1957,31 +1960,59 @@ async function loadDividend() {
 // ── 목표 분배금 시뮬레이션 ──
 function getDivGoalKey() { return `divGoal_${currentAccountId}`; }
 
+function _divGoalHoldingOptions() {
+  const stocks = computeHoldings(allRows);
+  return Object.values(stocks).filter(h => h.holdQty > 0);
+}
+
+function addDivGoalStockRow(code) {
+  const container = document.getElementById('divGoal_stock_rows');
+  if (!container) return;
+  const holding = _divGoalHoldingOptions();
+  const row = document.createElement('div');
+  row.className = 'flex-row';
+  row.style.cssText = 'margin-bottom:6px;gap:8px;align-items:center;';
+  row.innerHTML = `
+    <select class="divGoal-stock-select" style="flex:1;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;">
+      <option value="">종목 선택</option>
+      ${holding.map(h => `<option value="${h.code}" ${h.code === code ? 'selected' : ''}>${h.name}</option>`).join('')}
+    </select>
+    <button class="btn-delete" onclick="this.parentElement.remove()" title="삭제">✕</button>
+  `;
+  container.appendChild(row);
+}
+
 function loadDivGoalForm() {
   const saved = JSON.parse(localStorage.getItem(getDivGoalKey()) || '{}');
   const amtEl = document.getElementById('divGoal_amount');
-  const selEl = document.getElementById('divGoal_stock');
   if (amtEl && saved.amount) amtEl.value = Number(saved.amount).toLocaleString();
-  // 보유 종목 드롭다운 채우기
-  if (selEl) {
-    const stocks = computeHoldings(allRows);
-    const holding = Object.values(stocks).filter(h => h.holdQty > 0);
-    selEl.innerHTML = '<option value="">보유 종목에서 선택</option>' +
-      holding.map(h => `<option value="${h.code}" ${h.code === saved.stockCode ? 'selected' : ''}>${h.name}</option>`).join('');
+  const container = document.getElementById('divGoal_stock_rows');
+  if (container) {
+    container.innerHTML = '';
+    const stocks = saved.stocks || [];
+    if (stocks.length) {
+      stocks.forEach(s => addDivGoalStockRow(s.stockCode));
+    } else if (saved.stockCode) {
+      addDivGoalStockRow(saved.stockCode);
+    }
   }
 }
 
 function saveDivGoalForm() {
   const amtEl = document.getElementById('divGoal_amount');
-  const selEl = document.getElementById('divGoal_stock');
   const amount = Number(String(amtEl.value).replace(/[^\d]/g, '')) || 0;
-  const stockCode = selEl.value;
-  if (!amount || !stockCode) {
-    showToast('목표 금액과 기준 종목을 모두 입력하세요', 'error');
+  const selects = document.querySelectorAll('.divGoal-stock-select');
+  const stocks = [];
+  selects.forEach(sel => {
+    if (sel.value) {
+      stocks.push({ stockCode: sel.value, stockName: sel.options[sel.selectedIndex]?.text || '' });
+    }
+  });
+  if (!amount || !stocks.length) {
+    showToast('목표 금액과 종목을 1개 이상 입력하세요', 'error');
     return;
   }
-  const stockName = selEl.options[selEl.selectedIndex]?.text || '';
-  localStorage.setItem(getDivGoalKey(), JSON.stringify({ amount, stockCode, stockName }));
+  localStorage.setItem(getDivGoalKey(), JSON.stringify({ amount, stocks }));
   showToast('목표 분배금 설정 저장됨', 'success');
 }
 
@@ -1989,74 +2020,73 @@ function renderDivGoal(rows, holdings, quoteMap) {
   const body = document.getElementById('divGoalBody');
   if (!body) return;
   const saved = JSON.parse(localStorage.getItem(getDivGoalKey()) || '{}');
-  if (!saved.amount || !saved.stockCode) {
+  const stockList = saved.stocks || (saved.stockCode ? [{ stockCode: saved.stockCode, stockName: saved.stockName }] : []);
+  if (!saved.amount || !stockList.length) {
     body.innerHTML = '<div class="empty-state"><p>계좌 설정에서 목표 분배금을 설정하세요</p></div>';
     return;
   }
   const monthlyGoal = saved.amount;
   const annualGoal = monthlyGoal * 12;
-  const code = saved.stockCode;
-  const name = saved.stockName || code;
 
-  // 해당 종목의 최근 12개월 주당 배당금 계산
-  const hKey = Object.keys(holdings).find(k => holdings[k].code === code);
-  const h = hKey ? holdings[hKey] : null;
-  if (!h || h.holdQty <= 0 || h.div <= 0) {
-    body.innerHTML = `<div class="empty-state"><p>${name}의 배당 데이터가 부족합니다</p></div>`;
-    return;
-  }
-
-  // 최근 1개월 배당 (해당 종목) → 주당 월배당 → ×12 = 주당 연배당
   const now = new Date();
   const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lmPrefix = `${lastM.getFullYear()}-${String(lastM.getMonth()+1).padStart(2,'0')}`;
-  const norm = normalizeKrxCode(code);
-  const recentMonthDiv = rows
-    .filter(r => r[1] === '분배금입금' && String(r[0]).startsWith(lmPrefix)
-      && normalizeKrxCode(r[3]) === norm)
-    .reduce((s,r) => s + (Number(r[7])||0), 0);
 
-  if (recentMonthDiv <= 0) {
-    body.innerHTML = `<div class="empty-state"><p>${name}의 전월 배당 데이터가 없습니다</p></div>`;
-    return;
+  let totalAdditionalCost = 0;
+  const stockHtmls = [];
+
+  for (const s of stockList) {
+    const code = s.stockCode;
+    const name = s.stockName || code;
+    const norm = normalizeKrxCode(code);
+    const hKey = Object.keys(holdings).find(k => holdings[k].code === code);
+    const h = hKey ? holdings[hKey] : null;
+    if (!h || h.holdQty <= 0) {
+      stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${name} — 보유 데이터 없음</div>`);
+      continue;
+    }
+    const recentMonthDiv = rows
+      .filter(r => r[1] === '분배금입금' && String(r[0]).startsWith(lmPrefix) && normalizeKrxCode(r[3]) === norm)
+      .reduce((s2,r) => s2 + (Number(r[7])||0), 0);
+    if (recentMonthDiv <= 0) {
+      stockHtmls.push(`<div style="padding:8px 0;color:var(--text2);">${name} — 전월 배당 없음</div>`);
+      continue;
+    }
+    const divPerShareMonth = recentMonthDiv / h.holdQty;
+    const divPerShareYear = divPerShareMonth * 12;
+    const sharesNeeded = Math.ceil(annualGoal / divPerShareYear);
+    const additionalShares = Math.max(0, sharesNeeded - h.holdQty);
+    const currentPrice = quoteMap[norm]?.price || (h.holdCost / h.holdQty);
+    const additionalCost = additionalShares * currentPrice;
+    const priceLabel = quoteMap[norm]?.price ? '현재가' : '평단가';
+    totalAdditionalCost += additionalCost;
+
+    stockHtmls.push(`
+      <div style="padding:12px 0;${stockHtmls.length ? 'border-top:1px solid var(--border);' : ''}">
+        <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">${name}</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:14px;">
+          <div><span style="color:var(--text2)">현재 보유</span> <strong>${h.holdQty.toLocaleString()}주</strong></div>
+          <div><span style="color:var(--text2)">목표</span> <strong style="color:var(--green)">${sharesNeeded.toLocaleString()}주</strong></div>
+          <div><span style="color:var(--text2)">추가 필요</span> <strong style="color:var(--accent)">${additionalShares.toLocaleString()}주</strong></div>
+          <div><span style="color:var(--text2)">추가 금액 (${priceLabel})</span> <strong style="color:var(--accent)">약 ${Math.round(additionalCost).toLocaleString()}원</strong></div>
+        </div>
+        <div style="margin-top:4px;font-size:11px;color:var(--text2);">
+          주당 월배당 ${Math.round(divPerShareMonth).toLocaleString()}원 × 12 = 연 ${Math.round(divPerShareYear).toLocaleString()}원 (전월 실적)
+        </div>
+      </div>
+    `);
   }
 
-  const divPerShareMonth = recentMonthDiv / h.holdQty;
-  const divPerShareYear = divPerShareMonth * 12;
-  const sharesNeeded = Math.ceil(annualGoal / divPerShareYear);
-  const additionalShares = Math.max(0, sharesNeeded - h.holdQty);
-
-  const currentPrice = quoteMap[norm]?.price || (h.holdCost / h.holdQty);
-  const additionalCost = additionalShares * currentPrice;
-  const priceLabel = quoteMap[norm]?.price ? '현재가' : '평단가';
+  const totalNote = stockList.length > 1
+    ? `<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px;font-size:14px;font-weight:700;">
+        전체 추가 필요 금액 합계: <span style="color:var(--accent)">${Math.round(totalAdditionalCost).toLocaleString()}원</span>
+      </div>` : '';
 
   body.innerHTML = `
-    <div style="font-size:15px;line-height:2;">
-      <div style="color:var(--text2);margin-bottom:4px;">월 <strong style="color:var(--accent)">${monthlyGoal.toLocaleString()}원</strong> 분배금을 받으려면</div>
-      <div style="font-size:18px;font-weight:700;color:var(--text);">
-        ${name}
-      </div>
-      <div style="margin-top:8px;display:flex;gap:24px;flex-wrap:wrap;">
-        <div>
-          <span style="color:var(--text2)">현재 보유</span>
-          <span style="font-weight:700;margin-left:8px;">${h.holdQty.toLocaleString()}주</span>
-        </div>
-        <div>
-          <span style="color:var(--text2)">목표 수량</span>
-          <span style="font-weight:700;color:var(--green);margin-left:8px;">${sharesNeeded.toLocaleString()}주</span>
-        </div>
-        <div>
-          <span style="color:var(--text2)">추가 필요</span>
-          <span style="font-weight:700;color:var(--accent);margin-left:8px;">${additionalShares.toLocaleString()}주</span>
-        </div>
-        <div>
-          <span style="color:var(--text2)">추가 금액 (${priceLabel})</span>
-          <span style="font-weight:700;color:var(--accent);margin-left:8px;">약 ${Math.round(additionalCost).toLocaleString()}원</span>
-        </div>
-      </div>
-      <div style="margin-top:8px;font-size:11px;color:var(--text2);">
-        ※ 주당 월배당 ${Math.round(divPerShareMonth).toLocaleString()}원 × 12 = 연 ${Math.round(divPerShareYear).toLocaleString()}원 기준 (전월 실적)
-      </div>
+    <div style="font-size:15px;line-height:1.8;">
+      <div style="color:var(--text2);margin-bottom:8px;">월 <strong style="color:var(--accent)">${monthlyGoal.toLocaleString()}원</strong> 분배금을 받으려면</div>
+      ${stockHtmls.join('')}
+      ${totalNote}
     </div>
   `;
 }

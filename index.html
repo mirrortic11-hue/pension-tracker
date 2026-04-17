@@ -2029,11 +2029,10 @@ async function calcRebalance() {
     portfolioTotal += Math.round(price * h.holdQty);
   }
 
-  // 설정된 종목 중 비중 > 0인 것만 리밸런싱 대상
-  const activeList = stockList.filter(s => (s.pct || 0) > 0);
+  // 설정된 종목 전부 리밸런싱 대상 (0% = 전량 매도)
   const items = [];
   let targetTotal = 0;
-  for (const s of activeList) {
+  for (const s of stockList) {
     const hKey = Object.keys(stocks).find(k => stocks[k].code === s.stockCode);
     const h = hKey ? stocks[hKey] : null;
     const norm = normalizeKrxCode(s.stockCode);

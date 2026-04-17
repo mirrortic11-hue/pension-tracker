@@ -2016,8 +2016,10 @@ async function calcRebalance() {
 
   const stocks = computeHoldings(allRows);
   const holding = Object.values(stocks).filter(s => s.holdQty > 0);
-  const codes = holding.map(s => s.code).filter(Boolean);
-  const quoteMap = codes.length ? await fetchKrxQuotesForCodes(codes) : {};
+  // 보유 종목 + 설정 종목 코드 합산 (미보유 종목 시세 조회 포함)
+  const allCodes = new Set(holding.map(s => s.code).filter(Boolean));
+  stockList.forEach(s => { if (s.stockCode) allCodes.add(s.stockCode); });
+  const quoteMap = allCodes.size ? await fetchKrxQuotesForCodes([...allCodes]) : {};
 
   // 전체 포트폴리오 평가금액 (설정 외 종목 포함)
   let portfolioTotal = 0;

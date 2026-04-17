@@ -424,8 +424,8 @@ tbody td {
   font-family: var(--sans);
   font-weight: 600;
 }
-.badge-매수  { background: rgba(248,81,73,0.15);  color: #f85149; }
-.badge-매도  { background: rgba(88,166,255,0.15); color: #58a6ff; }
+.badge-매수  { background: rgba(88,166,255,0.15); color: #58a6ff; }
+.badge-매도  { background: rgba(248,81,73,0.15);  color: #f85149; }
 .badge-분배금입금 { background: rgba(63,185,80,0.15); color: #3fb950; }
 .badge-입금  { background: rgba(210,153,34,0.15); color: #d29922; }
 .badge-예탁금이용료 { background: rgba(139,148,158,0.15); color: #8b949e; }

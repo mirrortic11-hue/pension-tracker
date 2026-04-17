@@ -435,6 +435,22 @@
           <span id="pfCashWeight" style="font-size:14px;font-weight:600;color:var(--text2);">—</span>
         </div>
       </div>
+
+      <!-- 적립 매수 가이드 -->
+      <div class="card" id="rebalanceCard">
+        <div class="card-header">
+          <span class="card-title">적립 매수 가이드</span>
+          <span style="font-size:11px;color:var(--text2);">목표 비중은 계좌 설정 → 목표 분배금에서 변경</span>
+        </div>
+        <div class="card-body">
+          <div class="flex-row" style="gap:12px;align-items:center;margin-bottom:14px;">
+            <label style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap;">투자금액</label>
+            <input type="text" inputmode="numeric" class="money-input" id="rebalanceAmount" placeholder="예: 1,000,000" style="max-width:200px;">
+            <button class="btn btn-primary btn-sm" onclick="calcRebalance()">계산</button>
+          </div>
+          <div id="rebalanceResult"></div>
+        </div>
+      </div>
     </div>
 
     <!-- ══ 분배금 페이지 ══ -->
@@ -1896,6 +1912,99 @@ async function loadPortfolio() {
   const cashWeight = totalAsset > 0 ? (cash / totalAsset * 100).toFixed(1) + '%' : '-';
   document.getElementById('pfCash').textContent = cash.toLocaleString() + '원';
   document.getElementById('pfCashWeight').textContent = cashWeight;
+}
+
+// ── 적립 매수 가이드 (리밸런싱) ──
+async function calcRebalance() {
+  const input = document.getElementById('rebalanceAmount');
+  const result = document.getElementById('rebalanceResult');
+  const investAmt = Number(String(input.value).replace(/[^\d]/g, '')) || 0;
+  if (investAmt <= 0) { showToast('투자금액을 입력하세요', 'error'); return; }
+
+  const saved = JSON.parse(localStorage.getItem(getDivGoalKey()) || '{}');
+  const stockList = saved.stocks || [];
+  if (!stockList.length) {
+    result.innerHTML = '<div style="color:var(--text2);font-size:13px;">계좌 설정 → 목표 분배금에서 종목과 비중을 먼저 설정하세요</div>';
+    return;
+  }
+
+  const stocks = computeHoldings(allRows);
+  const holding = Object.values(stocks).filter(s => s.holdQty > 0);
+  const codes = holding.map(s => s.code).filter(Boolean);
+  const quoteMap = codes.length ? await fetchKrxQuotesForCodes(codes) : {};
+
+  // 현재 평가금액 합산 (설정된 종목만)
+  const items = [];
+  let currentTotal = 0;
+  for (const s of stockList) {
+    const hKey = Object.keys(stocks).find(k => stocks[k].code === s.stockCode);
+    const h = hKey ? stocks[hKey] : null;
+    const norm = normalizeKrxCode(s.stockCode);
+    const price = quoteMap[norm]?.price || (h ? h.holdCost / h.holdQty : 0);
+    const evalAmt = h ? Math.round(price * h.holdQty) : 0;
+    currentTotal += evalAmt;
+    items.push({ name: s.stockName || s.stockCode, code: s.stockCode, pct: s.pct || 0, holdQty: h ? h.holdQty : 0, price, evalAmt });
+  }
+
+  const newTotal = currentTotal + investAmt;
+
+  // 1차: 목표 금액 - 현재 금액 = 매수 금액
+  let remaining = investAmt;
+  const buys = items.map(it => {
+    const targetAmt = Math.round(newTotal * it.pct / 100);
+    const gap = Math.max(0, targetAmt - it.evalAmt);
+    return { ...it, targetAmt, gap, buyAmt: 0, buyQty: 0 };
+  });
+
+  // 비중 초과 종목은 gap=0, 나머지에 재분배
+  const totalGap = buys.reduce((s,b) => s + b.gap, 0);
+  for (const b of buys) {
+    if (totalGap > 0) {
+      b.buyAmt = Math.round(investAmt * (b.gap / totalGap));
+    } else {
+      b.buyAmt = Math.round(investAmt * b.pct / 100);
+    }
+    b.buyQty = b.price > 0 ? Math.floor(b.buyAmt / b.price) : 0;
+    b.buyAmt = b.buyQty * b.price;
+  }
+
+  // 비중 계산
+  const afterTotal = buys.reduce((s,b) => s + b.evalAmt + b.buyAmt, 0) || 1;
+
+  result.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>종목명</th>
+            <th class="td-right">현재비중</th>
+            <th class="td-right">→ 매수후비중</th>
+            <th class="td-right">목표비중</th>
+            <th class="td-right">매수금액</th>
+            <th class="td-right">매수수량</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${buys.map(b => {
+            const curW = currentTotal > 0 ? (b.evalAmt / currentTotal * 100).toFixed(1) : '0.0';
+            const afterW = ((b.evalAmt + b.buyAmt) / afterTotal * 100).toFixed(1);
+            const diffClass = Math.abs(afterW - b.pct) < 2 ? 'text-green' : 'text-yellow';
+            return `<tr>
+              <td class="td-label">${b.name}</td>
+              <td class="td-right">${curW}%</td>
+              <td class="td-right ${diffClass}">${afterW}%</td>
+              <td class="td-right">${b.pct}%</td>
+              <td class="td-right" style="color:var(--accent);font-weight:600;">${b.buyAmt > 0 ? b.buyAmt.toLocaleString() + '원' : '—'}</td>
+              <td class="td-right" style="font-weight:700;">${b.buyQty > 0 ? b.buyQty.toLocaleString() + '주' : '—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--text2);">
+      ※ 주식은 1주 단위 매수라 목표 비중과 소폭 차이가 날 수 있습니다
+    </div>
+  `;
 }
 
 // ── 분배금 ──

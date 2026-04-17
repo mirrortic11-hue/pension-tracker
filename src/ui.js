@@ -65,7 +65,7 @@ function showPage(name) {
   if (name === 'portfolio') loadPortfolio();
   if (name === 'dividend')  loadDividend();
   if (name === 'deposit')   loadDeposit();
-  if (name === 'account-settings' && typeof loadDivGoalForm === 'function') loadDivGoalForm();
+  if (name === 'account-settings' && typeof loadDivGoalForm === 'function') { loadDivGoalForm(); loadPfGoalForm(); }
   if (name === 'calculator' && typeof loadCalculatorPage === 'function') loadCalculatorPage();
 }
 

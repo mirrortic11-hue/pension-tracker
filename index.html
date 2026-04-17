@@ -786,6 +786,27 @@
           </div>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">포트폴리오 목표 비중</span>
+          <span style="font-size:11px;color:var(--text2);">적립 매수 가이드에서 리밸런싱 기준으로 사용됩니다</span>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:12px;font-weight:600;color:var(--text);">종목별 목표 비중</span>
+            <span style="font-size:11px;color:var(--text2);">보유 종목만 추가 가능, 합계 100%</span>
+          </div>
+          <div id="pfGoal_stock_rows"></div>
+          <div class="flex-row" style="margin-top:8px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="addPfGoalStockRow()">+ 종목 추가</button>
+          </div>
+          <div class="divider"></div>
+          <div class="flex-row" style="margin-top:12px;">
+            <button class="btn btn-primary btn-sm" onclick="savePfGoalForm()">저장</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="page" id="page-settings">
@@ -1130,6 +1151,7 @@ function switchAccount(id, route) {
   // 복리 예상 설정 폼 새 계좌 기준으로 갱신
   _restoreProjectionForm();
   loadDivGoalForm();
+  loadPfGoalForm();
 
   // 요청된 route로 네비게이션 (기본 거래내역). 해당 페이지 로더가 fetch 시작.
   showPage(route || 'transactions');
@@ -1914,6 +1936,60 @@ async function loadPortfolio() {
   document.getElementById('pfCashWeight').textContent = cashWeight;
 }
 
+// ── 포트폴리오 목표 비중 설정 ──
+function getPfGoalKey() { return `pfGoal_${currentAccountId}`; }
+
+function addPfGoalStockRow(code, pct) {
+  const container = document.getElementById('pfGoal_stock_rows');
+  if (!container) return;
+  const stocks = computeHoldings(allRows);
+  const holding = Object.values(stocks).filter(h => h.holdQty > 0);
+  const row = document.createElement('div');
+  row.className = 'flex-row';
+  row.style.cssText = 'margin-bottom:6px;gap:8px;align-items:center;';
+  row.innerHTML = `
+    <select class="pfGoal-stock-select" style="flex:1;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;">
+      <option value="">종목 선택</option>
+      ${holding.map(h => `<option value="${h.code}" ${h.code === code ? 'selected' : ''}>${h.name}</option>`).join('')}
+    </select>
+    <input type="number" class="pfGoal-stock-pct" style="width:70px;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;text-align:right;" placeholder="%" min="1" max="100" value="${pct || ''}">
+    <span style="color:var(--text2);font-size:13px;">%</span>
+    <button class="btn-delete" onclick="this.parentElement.remove()" title="삭제">✕</button>
+  `;
+  container.appendChild(row);
+}
+
+function loadPfGoalForm() {
+  const saved = JSON.parse(localStorage.getItem(getPfGoalKey()) || '{}');
+  const container = document.getElementById('pfGoal_stock_rows');
+  if (container) {
+    container.innerHTML = '';
+    const stocks = saved.stocks || [];
+    stocks.forEach(s => addPfGoalStockRow(s.stockCode, s.pct));
+  }
+}
+
+function savePfGoalForm() {
+  const rows = document.getElementById('pfGoal_stock_rows')?.children || [];
+  const stocks = [];
+  for (const row of rows) {
+    const sel = row.querySelector('.pfGoal-stock-select');
+    const pctInput = row.querySelector('.pfGoal-stock-pct');
+    if (sel?.value) {
+      stocks.push({
+        stockCode: sel.value,
+        stockName: sel.options[sel.selectedIndex]?.text || '',
+        pct: Number(pctInput?.value) || 0
+      });
+    }
+  }
+  if (!stocks.length) { showToast('종목을 1개 이상 추가하세요', 'error'); return; }
+  const totalPct = stocks.reduce((s, st) => s + st.pct, 0);
+  if (totalPct !== 100) { showToast(`비율 합계가 ${totalPct}%입니다. 100%로 맞춰주세요`, 'error'); return; }
+  localStorage.setItem(getPfGoalKey(), JSON.stringify({ stocks }));
+  showToast('포트폴리오 목표 비중 저장됨', 'success');
+}
+
 // ── 적립 매수 가이드 (리밸런싱) ──
 async function calcRebalance() {
   const input = document.getElementById('rebalanceAmount');
@@ -1921,10 +1997,10 @@ async function calcRebalance() {
   const investAmt = Number(String(input.value).replace(/[^\d]/g, '')) || 0;
   if (investAmt <= 0) { showToast('투자금액을 입력하세요', 'error'); return; }
 
-  const saved = JSON.parse(localStorage.getItem(getDivGoalKey()) || '{}');
+  const saved = JSON.parse(localStorage.getItem(getPfGoalKey()) || '{}');
   const stockList = saved.stocks || [];
   if (!stockList.length) {
-    result.innerHTML = '<div style="color:var(--text2);font-size:13px;">계좌 설정 → 목표 분배금에서 종목과 비중을 먼저 설정하세요</div>';
+    result.innerHTML = '<div style="color:var(--text2);font-size:13px;">계좌 설정 → 포트폴리오 목표 비중에서 종목과 비중을 먼저 설정하세요</div>';
     return;
   }
 

@@ -2143,12 +2143,12 @@ async function calcRebalance() {
             let tradeAmtText = '—';
             if (p.action === 'sell') {
               actionBadge = '<span class="badge-type badge-매도">매도</span>';
-              qtyText = `<span style="color:var(--red)">${p.qty.toLocaleString()}주</span>`;
-              tradeAmtText = `<span style="color:var(--red)">${p.tradeAmt.toLocaleString()}원</span>`;
-            } else if (p.action === 'buy' && p.qty > 0) {
-              actionBadge = '<span class="badge-type badge-매수">매수</span>';
               qtyText = `<span style="color:var(--accent)">${p.qty.toLocaleString()}주</span>`;
               tradeAmtText = `<span style="color:var(--accent)">${p.tradeAmt.toLocaleString()}원</span>`;
+            } else if (p.action === 'buy' && p.qty > 0) {
+              actionBadge = '<span class="badge-type badge-매수">매수</span>';
+              qtyText = `<span style="color:var(--red)">${p.qty.toLocaleString()}주</span>`;
+              tradeAmtText = `<span style="color:var(--red)">${p.tradeAmt.toLocaleString()}원</span>`;
             }
             return `<tr>
               <td class="td-label">${p.name}</td>
@@ -2168,8 +2168,8 @@ async function calcRebalance() {
       </table>
     </div>
     <div style="margin-top:10px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;">
-      ${totalSell > 0 ? `<span>매도 총금액: <strong style="color:var(--red)">${totalSell.toLocaleString()}원</strong></span>` : ''}
-      <span>매수 총금액: <strong style="color:var(--accent)">${totalBuy.toLocaleString()}원</strong></span>
+      ${totalSell > 0 ? `<span>매도 총금액: <strong style="color:var(--accent)">${totalSell.toLocaleString()}원</strong></span>` : ''}
+      <span>매수 총금액: <strong style="color:var(--red)">${totalBuy.toLocaleString()}원</strong></span>
       <span style="color:var(--text2);">투자금 ${investAmt.toLocaleString()}원${totalSell > 0 ? ' + 매도대금 ' + totalSell.toLocaleString() + '원' : ''}</span>
     </div>
     <div style="margin-top:6px;font-size:11px;color:var(--text2);">

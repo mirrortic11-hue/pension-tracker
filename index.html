@@ -2162,8 +2162,12 @@ async function calcRebalance() {
         </tbody>
       </table>
     </div>
-    ${totalSell > 0 ? `<div style="margin-top:8px;font-size:12px;color:var(--text2);">매도 대금 ${totalSell.toLocaleString()}원 → 매수 재투자에 포함</div>` : ''}
-    <div style="margin-top:8px;font-size:11px;color:var(--text2);">
+    <div style="margin-top:10px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;">
+      ${totalSell > 0 ? `<span>매도 총금액: <strong style="color:var(--red)">${totalSell.toLocaleString()}원</strong></span>` : ''}
+      <span>매수 총금액: <strong style="color:var(--accent)">${totalBuy.toLocaleString()}원</strong></span>
+      <span style="color:var(--text2);">투자금 ${investAmt.toLocaleString()}원${totalSell > 0 ? ' + 매도대금 ' + totalSell.toLocaleString() + '원' : ''}</span>
+    </div>
+    <div style="margin-top:6px;font-size:11px;color:var(--text2);">
       ※ 주식은 1주 단위 매수라 목표 비중과 소폭 차이가 날 수 있습니다
     </div>
   `;

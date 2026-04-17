@@ -2047,13 +2047,39 @@ async function calcRebalance() {
   const buyItems = plan.filter(p => p.diff > 0);
   const totalBuyGap = buyItems.reduce((s,p) => s + p.diff, 0);
 
+  // 1차: 비율 배분 후 floor
+  let usedBudget = 0;
   for (const p of buyItems) {
     if (totalBuyGap > 0 && p.price > 0) {
-      const allocated = Math.round(buyBudget * (p.diff / totalBuyGap));
+      const allocated = buyBudget * (p.diff / totalBuyGap);
       p.qty = Math.floor(allocated / p.price);
       p.tradeAmt = p.qty * p.price;
       p.action = 'buy';
+      usedBudget += p.tradeAmt;
     }
+  }
+  // 2차: 잔금으로 비중 오차 최소화 — 1주 추가 시 전체 오차가 가장 줄어드는 종목에 배분
+  let leftover = buyBudget - usedBudget;
+  while (leftover > 0) {
+    let bestIdx = -1, bestImprove = 0;
+    const curTotal = plan.reduce((s,p) => {
+      const adj = p.action === 'sell' ? -p.tradeAmt : (p.action === 'buy' ? p.tradeAmt : 0);
+      return s + p.evalAmt + adj;
+    }, 0);
+    for (let i = 0; i < plan.length; i++) {
+      const p = plan[i];
+      if (p.action !== 'buy' || p.price <= 0 || p.price > leftover) continue;
+      const adj = p.tradeAmt;
+      const curW = (p.evalAmt + adj) / curTotal;
+      const newW = (p.evalAmt + adj + p.price) / (curTotal + p.price);
+      const target = p.pct / 100;
+      const improve = Math.abs(curW - target) - Math.abs(newW - target);
+      if (improve > bestImprove) { bestImprove = improve; bestIdx = i; }
+    }
+    if (bestIdx < 0) break;
+    plan[bestIdx].qty += 1;
+    plan[bestIdx].tradeAmt += plan[bestIdx].price;
+    leftover -= plan[bestIdx].price;
   }
 
   // 비중 계산 (매도 반영 + 매수 반영)

@@ -2123,6 +2123,7 @@ async function calcRebalance() {
             <th class="td-right">현재비중</th>
             <th class="td-right">거래</th>
             <th class="td-right">수량</th>
+            <th class="td-right">거래금액</th>
             <th class="td-right">거래후</th>
             <th class="td-right">→ 비중</th>
             <th class="td-right">목표</th>
@@ -2139,12 +2140,15 @@ async function calcRebalance() {
             const afterEval = Math.round(afterQty * p.price);
             let actionBadge = '—';
             let qtyText = '—';
+            let tradeAmtText = '—';
             if (p.action === 'sell') {
               actionBadge = '<span class="badge-type badge-매도">매도</span>';
               qtyText = `<span style="color:var(--red)">${p.qty.toLocaleString()}주</span>`;
+              tradeAmtText = `<span style="color:var(--red)">${p.tradeAmt.toLocaleString()}원</span>`;
             } else if (p.action === 'buy' && p.qty > 0) {
               actionBadge = '<span class="badge-type badge-매수">매수</span>';
               qtyText = `<span style="color:var(--accent)">${p.qty.toLocaleString()}주</span>`;
+              tradeAmtText = `<span style="color:var(--accent)">${p.tradeAmt.toLocaleString()}원</span>`;
             }
             return `<tr>
               <td class="td-label">${p.name}</td>
@@ -2153,6 +2157,7 @@ async function calcRebalance() {
               <td class="td-right">${curW}%</td>
               <td class="td-right">${actionBadge}</td>
               <td class="td-right" style="font-weight:700;">${qtyText}</td>
+              <td class="td-right" style="font-weight:600;">${tradeAmtText}</td>
               <td class="td-right" style="font-weight:600;">${afterQty.toLocaleString()}</td>
               <td class="td-right ${diffClass}">${afterW}%</td>
               <td class="td-right">${p.pct}%</td>

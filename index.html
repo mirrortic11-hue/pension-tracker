@@ -2118,12 +2118,15 @@ async function calcRebalance() {
         <thead>
           <tr>
             <th>종목명</th>
+            <th class="td-right">현재가</th>
+            <th class="td-right">보유</th>
             <th class="td-right">현재비중</th>
-            <th class="td-right">→ 리밸런싱 후</th>
-            <th class="td-right">목표비중</th>
             <th class="td-right">거래</th>
-            <th class="td-right">금액</th>
             <th class="td-right">수량</th>
+            <th class="td-right">거래후</th>
+            <th class="td-right">→ 비중</th>
+            <th class="td-right">목표</th>
+            <th class="td-right">평가금액</th>
           </tr>
         </thead>
         <tbody>
@@ -2132,26 +2135,28 @@ async function calcRebalance() {
             const adj = p.action === 'sell' ? -p.tradeAmt : (p.action === 'buy' ? p.tradeAmt : 0);
             const afterW = ((p.evalAmt + adj) / afterTotal2 * 100).toFixed(1);
             const diffClass = Math.abs(afterW - p.pct) < 2 ? 'text-green' : 'text-yellow';
+            const afterQty = p.action === 'sell' ? p.holdQty - p.qty : p.holdQty + p.qty;
+            const afterEval = Math.round(afterQty * p.price);
             let actionBadge = '—';
-            let amtText = '—';
             let qtyText = '—';
             if (p.action === 'sell') {
               actionBadge = '<span class="badge-type badge-매도">매도</span>';
-              amtText = `<span style="color:var(--red)">${p.tradeAmt.toLocaleString()}원</span>`;
               qtyText = `<span style="color:var(--red)">${p.qty.toLocaleString()}주</span>`;
             } else if (p.action === 'buy' && p.qty > 0) {
               actionBadge = '<span class="badge-type badge-매수">매수</span>';
-              amtText = `<span style="color:var(--accent)">${p.tradeAmt.toLocaleString()}원</span>`;
               qtyText = `<span style="color:var(--accent)">${p.qty.toLocaleString()}주</span>`;
             }
             return `<tr>
               <td class="td-label">${p.name}</td>
+              <td class="td-right">${p.price > 0 ? p.price.toLocaleString() : '—'}</td>
+              <td class="td-right">${p.holdQty.toLocaleString()}</td>
               <td class="td-right">${curW}%</td>
+              <td class="td-right">${actionBadge}</td>
+              <td class="td-right" style="font-weight:700;">${qtyText}</td>
+              <td class="td-right" style="font-weight:600;">${afterQty.toLocaleString()}</td>
               <td class="td-right ${diffClass}">${afterW}%</td>
               <td class="td-right">${p.pct}%</td>
-              <td class="td-right">${actionBadge}</td>
-              <td class="td-right" style="font-weight:600;">${amtText}</td>
-              <td class="td-right" style="font-weight:700;">${qtyText}</td>
+              <td class="td-right">${afterEval.toLocaleString()}</td>
             </tr>`;
           }).join('')}
         </tbody>

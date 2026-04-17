@@ -795,7 +795,7 @@
         <div class="card-body">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <span style="font-size:12px;font-weight:600;color:var(--text);">종목별 목표 비중</span>
-            <span style="font-size:11px;color:var(--text2);">보유 종목만 추가 가능, 합계 100%</span>
+            <span style="font-size:11px;color:var(--text2);">보유 종목 또는 직접 입력, 합계 100%</span>
           </div>
           <div id="pfGoal_stock_rows"></div>
           <div class="flex-row" style="margin-top:8px;">
@@ -1939,19 +1939,25 @@ async function loadPortfolio() {
 // ── 포트폴리오 목표 비중 설정 ──
 function getPfGoalKey() { return `pfGoal_${currentAccountId}`; }
 
-function addPfGoalStockRow(code, pct) {
+function addPfGoalStockRow(code, pct, customName) {
   const container = document.getElementById('pfGoal_stock_rows');
   if (!container) return;
   const stocks = computeHoldings(allRows);
   const holding = Object.values(stocks).filter(h => h.holdQty > 0);
+  const isCustom = code && !holding.some(h => h.code === code);
   const row = document.createElement('div');
   row.className = 'flex-row';
-  row.style.cssText = 'margin-bottom:6px;gap:8px;align-items:center;';
+  row.style.cssText = 'margin-bottom:6px;gap:8px;align-items:center;flex-wrap:wrap;';
   row.innerHTML = `
-    <select class="pfGoal-stock-select" style="flex:1;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;">
+    <select class="pfGoal-stock-select" style="flex:1;min-width:150px;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;" onchange="const c=this.parentElement.querySelector('.pfGoal-custom');if(this.value==='__custom__'){c.style.display='flex'}else{c.style.display='none'}">
       <option value="">종목 선택</option>
-      ${holding.map(h => `<option value="${h.code}" ${h.code === code ? 'selected' : ''}>${h.name}</option>`).join('')}
+      ${holding.map(h => `<option value="${h.code}" ${!isCustom && h.code === code ? 'selected' : ''}>${h.name}</option>`).join('')}
+      <option value="__custom__" ${isCustom ? 'selected' : ''}>직접 입력</option>
     </select>
+    <div class="pfGoal-custom flex-row" style="display:${isCustom ? 'flex' : 'none'};gap:6px;">
+      <input type="text" class="pfGoal-custom-code" placeholder="종목코드" style="width:80px;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;" value="${isCustom ? (code || '') : ''}">
+      <input type="text" class="pfGoal-custom-name" placeholder="종목명" style="width:160px;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;" value="${isCustom ? (customName || '') : ''}">
+    </div>
     <input type="number" class="pfGoal-stock-pct" style="width:70px;padding:6px 8px;background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:6px;text-align:right;" placeholder="%" min="1" max="100" value="${pct || ''}">
     <span style="color:var(--text2);font-size:13px;">%</span>
     <button class="btn-delete" onclick="this.parentElement.remove()" title="삭제">✕</button>
@@ -1965,7 +1971,7 @@ function loadPfGoalForm() {
   if (container) {
     container.innerHTML = '';
     const stocks = saved.stocks || [];
-    stocks.forEach(s => addPfGoalStockRow(s.stockCode, s.pct));
+    stocks.forEach(s => addPfGoalStockRow(s.stockCode, s.pct, s.stockName));
   }
 }
 
@@ -1975,13 +1981,17 @@ function savePfGoalForm() {
   for (const row of rows) {
     const sel = row.querySelector('.pfGoal-stock-select');
     const pctInput = row.querySelector('.pfGoal-stock-pct');
-    if (sel?.value) {
-      stocks.push({
-        stockCode: sel.value,
-        stockName: sel.options[sel.selectedIndex]?.text || '',
-        pct: Number(pctInput?.value) || 0
-      });
-    }
+    if (!sel) continue;
+    let stockCode, stockName;
+    if (sel.value === '__custom__') {
+      stockCode = row.querySelector('.pfGoal-custom-code')?.value?.trim() || '';
+      stockName = row.querySelector('.pfGoal-custom-name')?.value?.trim() || '';
+      if (!stockCode && !stockName) continue;
+    } else if (sel.value) {
+      stockCode = sel.value;
+      stockName = sel.options[sel.selectedIndex]?.text || '';
+    } else { continue; }
+    stocks.push({ stockCode, stockName, pct: Number(pctInput?.value) || 0 });
   }
   if (!stocks.length) { showToast('종목을 1개 이상 추가하세요', 'error'); return; }
   const totalPct = stocks.reduce((s, st) => s + st.pct, 0);

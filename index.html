@@ -3206,6 +3206,55 @@ function parseMiraeNumber(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+// ─── 종목명 → 종목코드 자동 매칭 ───
+// 미래에셋 웹 거래내역은 종목코드 컬럼이 없고 종목명도 잘려 들어옴
+// ("삼성 KODEX 200타겟위클리커버드콜증권상장지수투자신탁[").
+// DB의 기존 거래에서 (name, code) 매핑을 만들어 prefix/substring 매칭으로
+// 코드를 채워줘야 calc.js stockKey가 code 기반으로 기존 포지션과 합쳐진다.
+//
+// 정규화(normalize/노멀라이즈/표준화): 발행사 prefix · 법적 suffix · 공백/특수문자 제거
+function normalizeStockName(s) {
+  if (!s) return '';
+  return String(s)
+    // 발행사/브랜드 접두사
+    .replace(/^(삼성|미래에셋|한화|신한|하나|한국투자|NH|KB|DB|DGB|IBK|키움|유진|SK|현대|교보|우리|메리츠|BNK|흥국|대신)\s*/, '')
+    // 법적 suffix (잘려있어도 .*로 덮어버림)
+    .replace(/증권상장지수투자신탁.*$/, '')
+    .replace(/상장지수투자신탁.*$/, '')
+    .replace(/투자신탁.*$/, '')
+    // 남은 공백/특수문자
+    .replace(/[\s\[\](){}\-_,./]/g, '')
+    .toUpperCase();
+}
+
+// DB rows([{stock_name, stock_code}, ...]) → Map<normalizedName, stock_code>
+function buildCodeMap(existingRows) {
+  const map = new Map();
+  for (const r of existingRows || []) {
+    if (!r || !r.stock_code || !r.stock_name) continue;
+    const n = normalizeStockName(r.stock_name);
+    if (n && !map.has(n)) map.set(n, String(r.stock_code));
+  }
+  return map;
+}
+
+// 잘린 업로드 이름 → 기존 종목코드. 매칭 실패 시 빈 문자열.
+function matchStockCode(name, codeMap) {
+  if (!name || !codeMap || codeMap.size === 0) return '';
+  const target = normalizeStockName(name);
+  if (!target) return '';
+  if (codeMap.has(target)) return codeMap.get(target);
+  // 양방향 startsWith — 어느 쪽이 잘려도 OK
+  for (const [n, code] of codeMap) {
+    if (n.length >= 4 && target.length >= 4 && (target.startsWith(n) || n.startsWith(target))) return code;
+  }
+  // fallback: 포함 관계 (최소 8자 이상만 허용해 오매칭 방지)
+  for (const [n, code] of codeMap) {
+    if (n.length >= 8 && target.length >= 8 && (target.includes(n) || n.includes(target))) return code;
+  }
+  return '';
+}
+
 // ISA/Kairos 전용 파서 — 2행 pair 구조 (종목코드 영문 시작 'A' 제거)
 function parseIsaKairos(raw) {
   const typeMap = MIRAE_TYPE_MAP;
@@ -3239,9 +3288,9 @@ function parseIsaKairos(raw) {
 
 // 미래에셋 웹 거래내역(HTML을 .xls로 저장) 파서.
 // 헤더: 거래일자/거래종류/종목명/거래수량/거래금액/외화거래금액/수수료/예수금잔고
-// 1행 per record, 종목코드 없음 → calc.js stockKey가 name 폴백으로 처리.
-// 종목명은 서버가 미리 잘라둔 상태(예: `...투자신탁[`)로 오지만 일관성만 있으면 집계 가능.
-function parseMiraeHtml(text) {
+// 1행 per record, 종목코드 컬럼 없음 → codeMap(Map<normName, code>)으로 자동 매칭.
+// 종목명은 서버가 미리 잘라둔 상태(예: `...투자신탁[`)지만 매칭/집계 가능.
+function parseMiraeHtml(text, codeMap) {
   const doc = new DOMParser().parseFromString(text, 'text/html');
   // 여러 <table> 중 "거래일자" 헤더를 가진 것을 고른다 (앞쪽 타이틀 테이블 배제).
   const tables = Array.from(doc.querySelectorAll('table'));
@@ -3258,6 +3307,7 @@ function parseMiraeHtml(text) {
   const parsed = [];
   const skipped = {};
   const deduped = {};
+  const unmatched = {};  // {stock_name: count} — 코드 매칭 실패
 
   for (const tr of bodyRows) {
     const cells = Array.from(tr.children).map(td => td.textContent.trim());
@@ -3278,19 +3328,27 @@ function parseMiraeHtml(text) {
     const qty = parseMiraeNumber(qtyStr);
     const amount = parseMiraeNumber(amtStr);
     const fee = parseMiraeNumber(feeStr);
+
+    // 종목명 기반 코드 매칭 — 종목명 있을 때만 시도 (분배금/현금성 제외).
+    let code = '';
+    if (name) {
+      code = matchStockCode(name, codeMap);
+      if (!code) unmatched[name] = (unmatched[name] || 0) + 1;
+    }
+
     // 스키마: [date, 구분, raw_type, code, name, qty, price, amount, fee]
-    // 이 포맷은 종목코드/단가가 없음 → 빈 문자열로 두고 DB에서 null로 저장.
+    // 이 포맷은 단가 컬럼이 없음 → 빈 문자열로 두고 DB에서 null로 저장.
     parsed.push([
-      fmtExcelDate(dateRaw), 구분, txType, '', name || '',
+      fmtExcelDate(dateRaw), 구분, txType, code, name || '',
       qty || '', '', amount || '', fee || ''
     ]);
   }
-  return { parsed, skipped, deduped };
+  return { parsed, skipped, deduped, unmatched };
 }
 
 function processExcel(file) {
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     try {
       const buf = e.target.result;  // ArrayBuffer
       // HTML sniff: 미래에셋 웹은 확장자만 .xls이고 실체는 HTML.
@@ -3304,7 +3362,19 @@ function processExcel(file) {
       if (isHtml) {
         const text = new TextDecoder('utf-8').decode(buf);
         format = 'mirae_html';
-        result = parseMiraeHtml(text);
+        // 현재 계좌의 기존 거래에서 (stock_name, stock_code) 매핑 빌드.
+        // 미래에셋 HTML은 종목코드가 없어서 이 매핑으로 복원해야 calc.js가
+        // 기존 포지션과 합쳐 집계함. 로드 실패해도 파싱은 계속 (코드 빈 채로).
+        let codeMap = new Map();
+        try {
+          const existing = await sbFetchAll(
+            `transactions?account_id=eq.${currentAccountId}&stock_code=not.is.null&select=stock_name,stock_code`
+          );
+          codeMap = buildCodeMap(existing);
+        } catch (err) {
+          console.warn('기존 종목코드 매핑 로드 실패:', err.message);
+        }
+        result = parseMiraeHtml(text, codeMap);
       } else {
         // codepage: 949 → CP949/EUC-KR 한글 자동 디코딩 (국내 증권사 엑셀 대부분)
         // cellDates: true → 날짜 셀을 Date 객체로 변환 (Excel serial number 방어)
@@ -3329,14 +3399,18 @@ function processExcel(file) {
         }
       }
 
-      const { parsed, skipped, deduped } = result;
+      const { parsed, skipped, deduped, unmatched } = result;
       const dedupedCnt = Object.values(deduped).reduce((a,b)=>a+b,0);
       const skippedCnt = Object.values(skipped).reduce((a,b)=>a+b,0);
+      const unmatchedCnt = Object.values(unmatched || {}).reduce((a,b)=>a+b,0);
       const dedupedNote = dedupedCnt > 0
         ? `<div style="color:var(--text2);font-size:11px;margin-bottom:6px;">ℹ 중복 방지용 자동 제외 ${dedupedCnt}건: ${Object.entries(deduped).map(([k,v])=>`${k} ${v}건`).join(', ')}</div>`
         : '';
       const skippedNote = skippedCnt > 0
         ? `<div style="color:var(--yellow);font-size:12px;margin-bottom:8px;">⚠ ${skippedCnt}건 스킵 (알 수 없는 거래종류): ${Object.entries(skipped).map(([k,v])=>`${k} ${v}건`).join(', ')}</div>`
+        : '';
+      const unmatchedNote = unmatchedCnt > 0
+        ? `<div style="color:var(--yellow);font-size:12px;margin-bottom:8px;line-height:1.6;">⚠ 종목코드 자동매칭 실패 ${unmatchedCnt}건 (신규 종목이거나 기존과 이름이 많이 다른 경우). 저장 후 해당 거래는 종목코드 없이 집계되니, 필요하면 거래 상세에서 수기로 코드를 채워주세요:<br>${Object.keys(unmatched).map(n => `· ${n}`).join('<br>')}</div>`
         : '';
 
       const resultDiv = document.getElementById('uploadResult');
@@ -3351,6 +3425,7 @@ function processExcel(file) {
           </div>
           ${dedupedNote}
           ${skippedNote}
+          ${unmatchedNote}
           <div style="font-size:12px;color:var(--text2);margin-bottom:12px;">아래 버튼을 클릭하면 확인 창이 한 번 더 뜹니다</div>
           <button class="btn btn-green btn-sm" onclick="uploadToSheet(${JSON.stringify(parsed).replace(/"/g,'&quot;')})">
             ${destName}에 ${parsed.length}건 추가
